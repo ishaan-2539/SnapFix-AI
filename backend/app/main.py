@@ -1,40 +1,49 @@
-# app/main.py
-import os
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
-from app.core.database import engine, Base
-from app.routers import reports
-
-# Auto-create database tables in Supabase on application startup
-Base.metadata.create_all(bind=engine)
+from app.routers import analytics, reports
+from sqlalchemy import text
+from app.core.database import get_db
+from fastapi import Depends
+from sqlalchemy.orm import Session
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
 
-# Enable CORS for frontend integration
+# Set up CORS middleware for frontend communication
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Adjust origin domains as needed
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Serve uploaded files as static files
-os.makedirs("uploads", exist_ok=True)
+# Mount local uploads directory for static image serving
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
-# Mount API Routers
-app.include_router(reports.router, prefix=settings.API_V1_STR)
+# Include Routers
+app.include_router(reports.router, prefix=f"{settings.API_V1_STR}/reports", tags=["Reports"])
+app.include_router(analytics.router, prefix=f"{settings.API_V1_STR}/analytics", tags=["Analytics"])
 
-@app.get("/")
+
+@app.get("/", tags=["Root"])
 def root():
     return {
-        "message": "CivicFix AI API is live!",
-        "docs_url": "/docs"
+        "message": f"Welcome to {settings.PROJECT_NAME} API Engine",
+        "docs": "/docs",
+        "status": "online"
     }
+@app.get("/health", tags=["Health"])
+def health_check(db: Session = Depends(get_db)):
+    """Health check endpoint to verify API and Database connectivity."""
+    try:
+        # Quick ping to verify DB connection
+        db.execute(text("SELECT 1"))
+        return {"status": "healthy", "database": "connected"}
+    except Exception as e:
+        return {"status": "unhealthy", "database": str(e)}

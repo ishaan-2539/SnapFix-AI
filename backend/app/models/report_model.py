@@ -7,8 +7,10 @@ class Report(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     image_url = Column(String, nullable=False)
+    image_hash = Column(String, index=True, nullable=True)
     latitude = Column(Float, nullable=False)
     longitude = Column(Float, nullable=False)
+    
     
     # AI Extracted Fields
     category = Column(String, nullable=False, index=True)
