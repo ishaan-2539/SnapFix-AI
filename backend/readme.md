@@ -8,13 +8,14 @@
 
 ## 🌟 Key Capabilities
 
-* 🤖 **Groq Vision AI Analysis:** Automated classification, severity scoring (1–10), and actionable summary generation from uploaded infrastructure images.
-* 📍 **EXIF Location Auto-Extraction:** Reads embedded GPS metadata from uploaded photo headers to pin the exact location where the photo was taken (with fallback support for home uploads).
-* 📐 **50m Haversine Spatial Deduplication:** Calculates real-time geographical distance between reports. Nearby reports automatically increment upvotes and boost overall `priority_score` instead of cluttering the database with duplicates.
-* 🖼️ **Perceptual Image Hashing (`dhash`):** File-level duplicate detection preventing identical re-uploads across varying location coordinates.
-* 🛡️ **AI Non-Civic Spam Filter:** Auto-rejects non-civic photos (e.g., selfies, pets, random objects) and cleans up storage instantly.
-* 📄 **Municipal Work Order PDF Engine:** Generates downloadable, print-ready PDF work orders complete with AI severity metrics, evidence thumbnails, and Google Maps links.
-* 📊 **City Command Analytics:** Dedicated endpoints delivering high-level municipal statistics and geo-clustered map pin payloads optimized for frontend rendering.
+* 🤖 **Gemini 2.5 Flash Vision AI:** Automated classification into standard municipal categories, hazard severity scoring (1–10), and actionable work order summary generation directly from uploaded infrastructure photos.
+* ⚡ **Zero-Downtime Demo Failsafe:** Built-in resilience layer that catches API rate limits, quota caps, or network timeouts and seamlessly injects fallback inspection data—guaranteeing 100% backend uptime during live pitches.
+* 📍 **EXIF Location Auto-Extraction:** Reads embedded GPS metadata from uploaded photo headers to pin the exact defect location (with fallback support for custom user inputs).
+* 📐 **50m Haversine Spatial Deduplication:** Calculates real-time geographical distance between reports. Nearby reports automatically increment upvotes and boost overall `priority_score` instead of cluttering the database with duplicate entries.
+* 🖼️ **Perceptual Image Hashing (dHash):** File-level duplicate detection preventing identical image re-uploads across varying location coordinates.
+* 🛡️ **AI Non-Civic Spam Filter:** Auto-rejects non-civic photos (e.g., selfies, pets, random objects) using AI validation guardrails, keeping storage and database records clean.
+* 📄 **Municipal Work Order PDF Engine:** Generates downloadable, print-ready PDF work orders complete with AI severity metrics, evidence thumbnails, and direct Google Maps location links.
+* 📊 **City Command Analytics:** Dedicated endpoints delivering high-level municipal statistics, triage priorities, and geo-clustered map pin payloads optimized for frontend dashboards.
 
 ---
 
