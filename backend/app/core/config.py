@@ -1,11 +1,18 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
+
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "CivicFix AI"
+    PROJECT_NAME: str = "SnapFix AI"
     API_V1_STR: str = "/api/v1"
-    GROQ_API_KEY: str
-    DATABASE_URL: str
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # Gemini Vision AI
+    GEMINI_API_KEY: str = ""
+
+    # Database
+    DATABASE_URL: str = "sqlite:///./civic_sense.db"
+
+    class Config:
+        env_file = ".env"
+
 
 settings = Settings() # type: ignore[call-arg]
