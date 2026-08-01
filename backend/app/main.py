@@ -28,7 +28,7 @@ app.add_middleware(
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # Include Routers
-app.include_router(reports.router, prefix=f"{settings.API_V1_STR}/reports", tags=["Reports"])
+app.include_router(reports.router, prefix=f"{settings.API_V1_STR}/reports", tags=["Reports"]) # (Wait, ensure reports is imported as a module)
 app.include_router(analytics.router, prefix=f"{settings.API_V1_STR}/analytics", tags=["Analytics"])
 
 

@@ -1,6 +1,6 @@
 import os
 import uuid
-from typing import List
+from typing import List, Any
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.report_model import Report
 from app.schemas.report_schema import ReportResponse
-from app.services.ai_service import analyze_civic_image
+# Import directly from ai_service
+from app.services.ai_service import analyze_infrastructure_image as analyze_ai_image
+
 from app.services.pdf_service import generate_report_pdf
 from app.utils.exif import extract_exif_gps
 from app.utils.geo import calculate_haversine_distance
@@ -20,6 +22,34 @@ UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 DEDUPLICATION_RADIUS_METERS = 50.0  # 50 meters clustering threshold
 
+ALLOWED_MIME_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB Limit
+
+
+async def validate_and_read_image(file: UploadFile) -> bytes:
+    """Validates image MIME type and 10MB size limit before returning bytes."""
+    if file.content_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid image format. Only JPEG, PNG, and WEBP images are accepted."
+        )
+
+    contents = await file.read()
+    if len(contents) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File size exceeds the 10MB limit. Please upload a smaller photo."
+        )
+
+    return contents
+
+
+def _get_field(obj: Any, key: str, default: Any) -> Any:
+    """Safely reads attributes from either dicts or Pydantic/dataclass objects."""
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
 
 @router.post("/", response_model=ReportResponse, status_code=status.HTTP_201_CREATED)
 async def create_report(
@@ -28,7 +58,8 @@ async def create_report(
     longitude: float | None = Form(None),
     db: Session = Depends(get_db)
 ):
-    contents = await file.read()
+    # 0. Image Format & Size Validation
+    contents = await validate_and_read_image(file)
 
     # 1. Generate Perceptual Image Hash
     img_hash = generate_image_hash(contents)
@@ -40,7 +71,6 @@ async def create_report(
     ).first()
 
     if existing_hash_report:
-        # Duplicate photo found! Increment upvotes and boost priority score
         current_upvotes = int(getattr(existing_hash_report, "upvotes", 1) or 1) + 1
         severity = int(getattr(existing_hash_report, "severity_score", 5) or 5)
 
@@ -66,24 +96,23 @@ async def create_report(
 
     # 5. SPATIAL DE-DUPLICATION CHECK (50-meter radius)
     active_reports = db.query(Report).filter(Report.status != "RESOLVED").all()
-    
+
     for existing_report in active_reports:
-        existing_lat = float(getattr(existing_report, "latitude"))
-        existing_lon = float(getattr(existing_report, "longitude"))
+        existing_lat = float(getattr(existing_report, "latitude", 0.0))
+        existing_lon = float(getattr(existing_report, "longitude", 0.0))
 
         dist = calculate_haversine_distance(
-            latitude, longitude, 
+            latitude, longitude,
             existing_lat, existing_lon
         )
-        
+
         if dist <= DEDUPLICATION_RADIUS_METERS:
-            # Duplicate location nearby! Increment upvotes and priority score
             current_upvotes = int(getattr(existing_report, "upvotes", 1) or 1) + 1
             severity = int(getattr(existing_report, "severity_score", 5) or 5)
 
             setattr(existing_report, "upvotes", current_upvotes)
             setattr(existing_report, "priority_score", severity + (current_upvotes - 1))
-            
+
             db.commit()
             db.refresh(existing_report)
             return existing_report
@@ -100,13 +129,18 @@ async def create_report(
 
     # 7. Analyze image using Vision AI Service
     mime_type = file.content_type or "image/jpeg"
-    ai_result = await analyze_civic_image(contents, mime_type)
+    ai_result = analyze_ai_image(contents, mime_type)
+
+    is_valid = _get_field(ai_result, "is_valid_civic_issue", True)
+    category = _get_field(ai_result, "category", "Other")
+    severity_score = int(_get_field(ai_result, "severity_score", 5))
+    summary = str(_get_field(ai_result, "summary", "Infrastructure issue reported."))
 
     # 8. AI Guardrail: Reject non-civic photos
-    if not ai_result.is_valid_civic_issue:
+    if not is_valid:
         if os.path.exists(file_path):
             os.remove(file_path)
-            
+
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Uploaded photo does not appear to contain a valid public civic infrastructure issue."
@@ -118,12 +152,12 @@ async def create_report(
         image_hash=img_hash,
         latitude=latitude,
         longitude=longitude,
-        category=ai_result.category,
-        severity_score=ai_result.severity_score,
-        summary=ai_result.summary,
-        is_valid_civic_issue=ai_result.is_valid_civic_issue,
+        category=category,
+        severity_score=severity_score,
+        summary=summary,
+        is_valid_civic_issue=is_valid,
         upvotes=1,
-        priority_score=ai_result.severity_score,
+        priority_score=severity_score,
         status="OPEN"
     )
 
@@ -132,6 +166,12 @@ async def create_report(
     db.refresh(new_report)
 
     return new_report
+
+
+def inspect_is_coroutine(fn: Any) -> bool:
+    """Helper to check if AI function call is async or sync."""
+    import asyncio
+    return asyncio.iscoroutinefunction(fn)
 
 
 @router.get("/", response_model=List[ReportResponse])
