@@ -18,12 +18,11 @@ app = FastAPI(
 # Set up CORS middleware for frontend communication
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust origin domains as needed
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # Mount local uploads directory for static image serving
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
