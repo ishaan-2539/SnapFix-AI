@@ -10,8 +10,9 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 app = FastAPI(
-    title=settings.PROJECT_NAME,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json"
+    title="SnapFix AI API",
+    description="Automated civic issue detection and municipal work order routing",
+    version="1.0.0",
 )
 
 # Set up CORS middleware for frontend communication

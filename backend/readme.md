@@ -1,8 +1,8 @@
-# 🏙️ CivicSense AI — Backend Engine
+# 📸 SnapFix AI
 
-> **AI-Powered Civic Infrastructure Management & Spatial Deduplication API**
+> **AI-Powered Civic Infrastructure Reporting and Work Order Automation Backend with Spatial Deduplication API**
 > 
-> CivicSense AI bridges the gap between public reporting and municipal action using Vision AI, automated EXIF location extraction, dual-layer deduplication, and automated work-order generation.
+> SnapFix AI bridges the gap between public reporting and municipal action using Vision AI, automated EXIF location extraction, dual-layer deduplication, and automated work-order generation.
 
 ---
 
@@ -63,7 +63,7 @@
 ### 1. Prerequisites
 * Python 3.10+
 * PostgreSQL Database (e.g., Supabase)
-* Groq API Key
+* Gemini API Key
 
 ### 2. Environment Setup
 Clone the repository and navigate to the backend directory:
@@ -79,7 +79,7 @@ Create a `.env` file based on `.env.example`:
 ```bash
 cp .env.example .env
 ```
-Fill in your `GROQ_API_KEY` and PostgreSQL `DATABASE_URL`.
+Fill in your `GEMINI_API_KEY` and PostgreSQL `DATABASE_URL`.
 
 ### 4. Running the Server
 Start the development server with Uvicorn:
@@ -112,7 +112,7 @@ backend/
 │   ├── models/         # SQLAlchemy ORM Models
 │   ├── routers/        # API Endpoints (Reports & Analytics)
 │   ├── schemas/        # Pydantic Schemas
-│   ├── services/       # Groq AI Vision & PDF Generator Services
+│   ├── services/       # Gemini Flash & PDF Generator Services
 │   ├── utils/          # EXIF Parsing, Haversine Math & Image Hashing
 │   └── main.py         # Application Entry Point
 ├── uploads/            # Static File Storage

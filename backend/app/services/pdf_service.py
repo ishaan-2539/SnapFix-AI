@@ -67,7 +67,7 @@ def generate_report_pdf(report: Report) -> bytes:
     )
 
     # 1. Header Banner
-    story.append(Paragraph("CivicSense AI — Official Work Order", title_style))
+    story.append(Paragraph("SnapFix AI - Municipal Inspection & Work Order Report", title_style))
     story.append(Paragraph(f"Generated for Municipal Action | Report ID: #{report_id}", subtitle_style))
     story.append(Spacer(1, 10))
 
