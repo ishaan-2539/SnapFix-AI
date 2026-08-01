@@ -40,9 +40,9 @@ async def analyze_civic_image(image_bytes: bytes, mime_type: str) -> AICivicAnal
         # Load image bytes into PIL Image format
         pil_image = Image.open(io.BytesIO(image_bytes))
 
-        # Use Gemini 2.5 Flash for fast multimodal inspection
+        # Use Gemini Flash Latest for fast multimodal inspection
         model = genai.GenerativeModel(  # type: ignore[attr-defined]
-            model_name="gemini-2.5-flash",
+            model_name="gemini-flash-latest",
             generation_config={"response_mime_type": "application/json"}
         )
 
