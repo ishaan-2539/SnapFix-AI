@@ -10,7 +10,7 @@
 
 1. **Spatial & Metadata Parsing**: Extracts embedded EXIF GPS coordinates or captures client fallback geolocation.
 2. **Vision AI Hazard Analysis**: Employs Google Gemini Flash to classify the hazard, score severity ($1$–$10$), auto-generate municipal summaries, and filter out non-infrastructure spam.
-3. **Dual-Layer De-Duplication Engine**: Combines **Perceptual Image Hashing** with **50-meter Haversine Geospatial Distance Calculations** to merge duplicate tickets and increment community upvotes.
+3. **Dual-Layer De-Duplication Engine**: Combines **Perceptual Image Hashing** with **15-meter Haversine Geospatial Distance Calculations** to merge duplicate tickets and increment community upvotes.
 4. **Dynamic Priority Scaling**: Recalculates issue priority on every cluster event (`priority_score = severity_score + (upvotes - 1)`).
 5. **Lifecycle Workflow Engine**: Tracks issue progression (`OPEN` → `IN_PROGRESS` → `RESOLVED`) through dedicated, type-validated REST endpoints.
 6. **Municipal Work Order Generation**: Dynamically renders field-ready PDF work orders complete with location coordinates, hazard photos, and dispatch summaries.
@@ -54,7 +54,7 @@
                  ▼                                 ▼
       ┌────────────────────┐          ┌──────────────────────────┐
       │ 400 Bad Request    │          │ 5. Dual-Layer Dedupe     │
-      │ (Guardrail Filter) │          │ (Hash Match OR <=50m Geo)│
+      │ (Guardrail Filter) │          │ (Hash Match OR <=15m Geo)│
       └────────────────────┘          └────────────┬─────────────┘
                                                    │
                                       Existing Cluster Found?
@@ -104,7 +104,7 @@
 ### 4. 🗺️ Dual-Layer De-Duplication & Clustering
 
 * **Layer A (Visual Hash Matching)**: Compares perceptual image hashes against existing active reports.
-* **Layer B (50m Haversine Proximity)**: Checks if an active issue (`OPEN` or `IN_PROGRESS`) of similar nature already exists within a 50-meter radius.
+* **Layer B (15m Haversine Proximity)**: Checks if an active issue (`OPEN` or `IN_PROGRESS`) of similar nature already exists within a 50-meter radius.
 * **Clustering Action**: Instead of creating duplicate database records, the backend merges the submission into the existing report, increments `upvotes`, and recalculates `priority_score`.
 
 ### 5. 🔄 Dedicated Status Lifecycle Sub-Resource

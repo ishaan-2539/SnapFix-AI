@@ -20,7 +20,7 @@ router = APIRouter()
 
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-DEDUPLICATION_RADIUS_METERS = 50.0  # 50 meters clustering threshold
+DEDUPLICATION_RADIUS_METERS = 15.0  # 15 meters clustering threshold
 
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB Limit
@@ -58,13 +58,50 @@ async def create_report(
     longitude: float | None = Form(None),
     db: Session = Depends(get_db)
 ):
-    # 0. Image Format & Size Validation
+    # ------------------------------------------------------------------
+    # Step 0: Image Format & Size Validation
+    # ------------------------------------------------------------------
     contents = await validate_and_read_image(file)
 
-    # 1. Generate Perceptual Image Hash
+    # ------------------------------------------------------------------
+    # Step 1: Location Resolution (EXIF GPS or Client Fallback)
+    # ------------------------------------------------------------------
+    exif_lat, exif_lon = extract_exif_gps(contents)
+
+    if exif_lat is not None and exif_lon is not None:
+        latitude, longitude = exif_lat, exif_lon
+
+    if latitude is None or longitude is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No location data found in photo. Please allow location permissions or upload a photo taken with GPS enabled."
+        )
+
+    # ------------------------------------------------------------------
+    # Step 2: AI Inspection & Guardrail Gatekeeper
+    # ------------------------------------------------------------------
+    mime_type = file.content_type or "image/jpeg"
+    ai_result = analyze_ai_image(contents, mime_type)
+
+    is_valid = _get_field(ai_result, "is_valid_civic_issue", True)
+    category = _get_field(ai_result, "category", "Other")
+    severity_score = int(_get_field(ai_result, "severity_score", 5))
+    summary = str(_get_field(ai_result, "summary", "Infrastructure issue reported."))
+
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded photo does not appear to contain a valid public civic infrastructure issue."
+        )
+
+    # ------------------------------------------------------------------
+    # Step 3: Generate Perceptual Image Hash
+    # ------------------------------------------------------------------
     img_hash = generate_image_hash(contents)
 
-    # 2. Check for EXACT/NEAR-EXACT Image Hash Duplicate across database
+    # ------------------------------------------------------------------
+    # Step 4: Exact/Near-Exact Hash Deduplication (Same Hash)
+    # ------------------------------------------------------------------
     existing_hash_report = db.query(Report).filter(
         Report.image_hash == img_hash,
         Report.status != "RESOLVED"
@@ -74,30 +111,23 @@ async def create_report(
         current_upvotes = int(getattr(existing_hash_report, "upvotes", 1) or 1) + 1
         severity = int(getattr(existing_hash_report, "severity_score", 5) or 5)
 
-        setattr(existing_hash_report, "upvotes", current_upvotes)
-        setattr(existing_hash_report, "priority_score", severity + (current_upvotes - 1))
+        setattr(existing_hash_report, "upvotes", current_upvotes)  # type: ignore
+        setattr(existing_hash_report, "priority_score", severity + (current_upvotes - 1))  # type: ignore
 
         db.commit()
         db.refresh(existing_hash_report)
         return existing_hash_report
 
-    # 3. LOCATION LOGIC: Prioritize EXIF location from photo metadata
-    exif_lat, exif_lon = extract_exif_gps(contents)
+    # ------------------------------------------------------------------
+    # Step 5: SPATIAL DE-DUPLICATION CHECK (CATEGORY-MATCHED + 15m RADIUS)
+    # ------------------------------------------------------------------
+    # 🚨 FIX: Only pull active reports that match the EXACT SAME CATEGORY!
+    category_matched_reports = db.query(Report).filter(
+        Report.status != "RESOLVED",
+        Report.category == category
+    ).all()
 
-    if exif_lat is not None and exif_lon is not None:
-        latitude, longitude = exif_lat, exif_lon
-
-    # 4. Reject if no location could be determined
-    if latitude is None or longitude is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No location data found in photo. Please allow location permissions or upload a photo taken with GPS enabled."
-        )
-
-    # 5. SPATIAL DE-DUPLICATION CHECK (50-meter radius)
-    active_reports = db.query(Report).filter(Report.status != "RESOLVED").all()
-
-    for existing_report in active_reports:
+    for existing_report in category_matched_reports:
         existing_lat = float(getattr(existing_report, "latitude", 0.0))
         existing_lon = float(getattr(existing_report, "longitude", 0.0))
 
@@ -110,14 +140,16 @@ async def create_report(
             current_upvotes = int(getattr(existing_report, "upvotes", 1) or 1) + 1
             severity = int(getattr(existing_report, "severity_score", 5) or 5)
 
-            setattr(existing_report, "upvotes", current_upvotes)
-            setattr(existing_report, "priority_score", severity + (current_upvotes - 1))
+            setattr(existing_report, "upvotes", current_upvotes)  # type: ignore
+            setattr(existing_report, "priority_score", severity + (current_upvotes - 1))  # type: ignore
 
             db.commit()
             db.refresh(existing_report)
             return existing_report
 
-    # 6. Save uploaded image to local storage
+    # ------------------------------------------------------------------
+    # Step 6: Save File to Disk (Only for NEW unique issues)
+    # ------------------------------------------------------------------
     file_ext = os.path.splitext(file.filename or "")[1] or ".jpg"
     unique_filename = f"{uuid.uuid4().hex}{file_ext}"
     file_path = os.path.join(UPLOAD_DIR, unique_filename)
@@ -127,26 +159,9 @@ async def create_report(
 
     image_url = f"/uploads/{unique_filename}"
 
-    # 7. Analyze image using Vision AI Service
-    mime_type = file.content_type or "image/jpeg"
-    ai_result = analyze_ai_image(contents, mime_type)
-
-    is_valid = _get_field(ai_result, "is_valid_civic_issue", True)
-    category = _get_field(ai_result, "category", "Other")
-    severity_score = int(_get_field(ai_result, "severity_score", 5))
-    summary = str(_get_field(ai_result, "summary", "Infrastructure issue reported."))
-
-    # 8. AI Guardrail: Reject non-civic photos
-    if not is_valid:
-        if os.path.exists(file_path):
-            os.remove(file_path)
-
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Uploaded photo does not appear to contain a valid public civic infrastructure issue."
-        )
-
-    # 9. Save new unique report into Database
+    # ------------------------------------------------------------------
+    # Step 7: Create & Persist New Ticket
+    # ------------------------------------------------------------------
     new_report = Report(
         image_url=image_url,
         image_hash=img_hash,
