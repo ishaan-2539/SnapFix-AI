@@ -308,7 +308,7 @@ Access the application at `http://localhost:5173`.
 
 ## API Contract Alignment
 
-This frontend directly implements the **CivicSense API Specification**:
+This frontend directly implements the **SnapFix AI API Specification**:
 
 * **Multipart Uploads:** `POST /api/v1/reports/` transmits images with optional `latitude` and `longitude` fields via standard `FormData`.
 
