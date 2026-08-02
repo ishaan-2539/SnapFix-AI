@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models.report_model import Report
-from app.schemas.report_schema import ReportResponse
+from app.schemas.report_schema import ReportResponse,StatusUpdateRequest
 # Import directly from ai_service
 from app.services.ai_service import analyze_infrastructure_image as analyze_ai_image
 
@@ -211,3 +211,26 @@ def download_report_pdf(report_id: int, db: Session = Depends(get_db)):
             "Content-Disposition": f"attachment; filename=civic_work_order_{report_id}.pdf"
         }
     )
+
+@router.patch("/{report_id}/status", response_model=ReportResponse)
+def update_report_status(
+    report_id: int,
+    payload: StatusUpdateRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Update the operational status of a civic report (OPEN -> IN_PROGRESS -> RESOLVED).
+    Transitions are unrestricted to allow reopening or status adjustments.
+    """
+    report = db.query(Report).filter(Report.id == report_id).first()
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Report with ID {report_id} not found."
+        )
+
+    report.status = payload.status # type: ignore
+    db.commit()
+    db.refresh(report)
+
+    return report

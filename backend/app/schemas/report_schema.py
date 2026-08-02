@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
-
+from typing import Literal
 # 1. Gemini Vision Structured Output Schema
 class AIReportAnalysis(BaseModel):
     is_valid_civic_issue: bool = Field(
@@ -33,3 +33,6 @@ class ReportResponse(BaseModel):
 
     class Config:
         from_attributes = True  # Allows Pydantic to read SQLAlchemy ORM models directly
+
+class StatusUpdateRequest(BaseModel):
+    status: Literal["OPEN", "IN_PROGRESS", "RESOLVED"]
