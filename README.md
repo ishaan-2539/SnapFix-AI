@@ -14,7 +14,9 @@ Transforming civic issue reporting through **Computer Vision**, **Geospatial Int
 ![TailwindCSS](https://img.shields.io/badge/TailwindCSS-v4-38BDF8?style=for-the-badge&logo=tailwindcss)
 ![Gemini AI](https://img.shields.io/badge/Gemini-AI-blue?style=for-the-badge)
 ![SQLite](https://img.shields.io/badge/SQLite-Database-003B57?style=for-the-badge&logo=sqlite)
-![Railway](https://img.shields.io/badge/Deploy-Railway-0B0D0E?style=for-the-badge&logo=railway)
+![Render](https://img.shields.io/badge/Backend-Render-46E3B7?style=for-the-badge&logo=render)
+![Vercel](https://img.shields.io/badge/Frontend-Vercel-000000?style=for-the-badge&logo=vercel)
+![Supabase](https://img.shields.io/badge/Database-Supabase-3ECF8E?style=for-the-badge&logo=supabase)
 
 </div>
 
@@ -705,45 +707,59 @@ http://localhost:5173
 
 ---
 
-# 🌐 Railway Deployment
+# 🌐 Deployment (Render + Vercel + Supabase)
 
-SnapFix AI can be deployed entirely on Railway.
+SnapFix AI runs as three separate pieces: a **Supabase** Postgres database, a **FastAPI** backend on **Render**, and a **React** frontend on **Vercel**.
 
-### Backend
+### 1. Database — Supabase
 
-Configure:
+1. Create a project at [supabase.com](https://supabase.com).
+2. Go to **Project Settings → Database → Connection Pooling** and copy the **Session pooler** connection string (port `5432`).
+   > ⚠️ Use the **pooler** URL, not the direct `db.<project>.supabase.co` connection. Supabase's direct connection is IPv6-only, and Render's network is IPv4-only — connecting directly throws `OperationalError: Network is unreachable`. The Session pooler URL is IPv4-compatible and avoids this entirely.
+3. The connection string looks like:
+   ```
+   postgresql://postgres.<project-ref>:<password>@aws-<region>.pooler.supabase.com:5432/postgres
+   ```
+   Keep this handy — it's your `DATABASE_URL`.
 
-- Start Command
+### 2. Backend — Render
 
-```bash
-uvicorn main:app --host 0.0.0.0 --port $PORT
-```
+1. New **Web Service** on [render.com](https://render.com), connect this repo.
+2. **Root Directory:** `backend`
+3. **Build Command:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. **Start Command:**
+   ```bash
+   uvicorn app.main:app --host 0.0.0.0 --port $PORT
+   ```
+   > Note it's `app.main:app`, not `main:app` — the FastAPI app lives inside the `app/` package.
+5. **Environment Variables:**
 
-Environment Variables
+   | Key | Value |
+   |---|---|
+   | `GEMINI_API_KEY` | Your Gemini API key from [Google AI Studio](https://aistudio.google.com/) |
+   | `DATABASE_URL` | The Supabase **Session pooler** URL from step 1 |
+   | `PROJECT_NAME` | `SnapFix AI` (optional, has a default) |
 
-```text
-GEMINI_API_KEY
-DATABASE_URL
-PROJECT_NAME
-```
+6. Deploy, then verify at `https://<your-service>.onrender.com/health` — should return `{"status":"healthy","database":"connected"}`. Database tables are created automatically on startup (`Base.metadata.create_all`), so no manual migration step is needed on a fresh database.
 
----
+   > **Free tier note:** Render's free web services spin down after 15 minutes of inactivity — the first request after idle takes 30–60 seconds to wake up. Fine for personal/demo use; ping `/health` before a live demo to warm it up.
 
-### Frontend
+### 3. Frontend — Vercel
 
-Set
+1. New **Project** on [vercel.com](https://vercel.com), connect this repo.
+2. **Root Directory:** `frontend`
+3. Build command and output directory are auto-detected (Vite).
+4. **Environment Variable:**
 
-```env
-VITE_API_BASE_URL=https://your-backend.up.railway.app
-```
+   | Key | Value |
+   |---|---|
+   | `VITE_API_BASE_URL` | Your Render backend URL, e.g. `https://snapfix-ai-backend.onrender.com` (no trailing slash) |
 
-Build Command
-
-```bash
-npm run build
-```
-
-Deploy the generated application to Railway.
+5. A `vercel.json` rewrite rule is already included in `frontend/` so client-side routing (React Router) doesn't 404 on page refresh.
+6. Deploy, then open the live Vercel URL and submit a test report — check the browser Network tab to confirm the request goes to your `onrender.com` backend and returns `201 Created`.
 
 ---
 
