@@ -765,8 +765,6 @@ SnapFix AI runs as three separate pieces: a **Supabase** Postgres database, a **
 
 # 📷 Screenshots
 
-> Replace these placeholders with screenshots after deployment.
-
 ## Landing Page
 
 <img src="docs/screenshots/landing.png" width="900">
