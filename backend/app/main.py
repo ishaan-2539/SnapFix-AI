@@ -8,6 +8,11 @@ from sqlalchemy import text
 from app.core.database import get_db
 from fastapi import Depends
 from sqlalchemy.orm import Session
+from app.core.database import Base, engine
+from app.models import report_model  # ensures the Report model is registered
+
+Base.metadata.create_all(bind=engine)
+
 
 app = FastAPI(
     title="SnapFix AI API",

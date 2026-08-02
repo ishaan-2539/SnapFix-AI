@@ -16,7 +16,7 @@ def get_city_analytics(db: Session = Depends(get_db)):
     """
     total_reports = db.query(Report).count()
     open_reports = db.query(Report).filter(Report.status == "OPEN").count()
-    in_progress_reports = db.query(Report).filter(Report.status == "IN PROGRESS").count()
+    in_progress_reports = db.query(Report).filter(Report.status == "IN_PROGRESS").count()
     resolved_reports = db.query(Report).filter(Report.status == "RESOLVED").count()
 
     # Calculate average severity score safely
