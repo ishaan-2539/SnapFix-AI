@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { MapContainer, TileLayer, Marker, useMap } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
-import { Search, LocateFixed, Camera, ArrowLeft, ListFilter } from "lucide-react";
+import { Search, LocateFixed, Camera, ArrowLeft, ListFilter, Menu } from "lucide-react";
 import { MapSkeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { MarkerCard } from "@/components/map/MarkerCard";
@@ -37,9 +37,11 @@ interface CityMapProps {
   standalone?: boolean;
   reportPath?: string;
   detailsBasePath?: string;
+  /** When provided (embedded in a layout with a sidebar, e.g. Ops), shows a menu button that calls this. */
+  onMenuClick?: () => void;
 }
 
-export default function CityMap({ standalone = false, reportPath = "/app/report", detailsBasePath = "/app/reports" }: CityMapProps) {
+export default function CityMap({ standalone = false, reportPath = "/app/report", detailsBasePath = "/app/reports", onMenuClick }: CityMapProps) {
   const [pins, setPins] = useState<MapPin[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -101,6 +103,15 @@ export default function CityMap({ standalone = false, reportPath = "/app/report"
             >
               <ArrowLeft className="w-4.5 h-4.5" />
             </Link>
+          )}
+          {onMenuClick && (
+            <button
+              onClick={onMenuClick}
+              className="w-10 h-10 shrink-0 bg-white rounded-full shadow-elevated flex items-center justify-center text-ink-700 lg:hidden"
+              aria-label="Open menu"
+            >
+              <Menu className="w-4.5 h-4.5" />
+            </button>
           )}
           <div className="flex-1 flex items-center gap-2 bg-white rounded-full shadow-elevated px-4 h-11">
             <Search className="w-4 h-4 text-ink-400 shrink-0" />

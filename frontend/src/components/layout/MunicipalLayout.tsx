@@ -20,7 +20,7 @@ export function MunicipalLayout() {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed lg:sticky top-0 z-50 h-screen w-72 bg-ink-950 border-r border-white/10 flex flex-col transition-transform duration-200",
+          "fixed lg:sticky top-0 z-[1000] h-screen w-72 bg-ink-950 border-r border-white/10 flex flex-col transition-transform duration-200",
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
@@ -66,7 +66,7 @@ export function MunicipalLayout() {
       </aside>
 
       {mobileOpen && (
-        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setMobileOpen(false)} />
+        <div className="fixed inset-0 bg-black/50 z-[900] lg:hidden" onClick={() => setMobileOpen(false)} />
       )}
 
       <div className="flex-1 min-w-0 bg-ink-50 lg:rounded-l-[28px] lg:my-0">
@@ -80,7 +80,7 @@ export function MunicipalLayout() {
           </div>
           <div className="w-5" />
         </header>
-        <Outlet />
+        <Outlet context={{ openMobileMenu: () => setMobileOpen(true) }} />
       </div>
     </div>
   );
