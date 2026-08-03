@@ -707,60 +707,12 @@ http://localhost:5173
 
 ---
 
-# 🌐 Deployment (Render + Vercel + Supabase)
+## 🚀 Live Demo
 
-SnapFix AI runs as three separate pieces: a **Supabase** Postgres database, a **FastAPI** backend on **Render**, and a **React** frontend on **Vercel**.
+- **Frontend:** https://snap-fix-ai-gamma.vercel.app/
+- **Backend API:** https://snapfix-ai-aury.onrender.com
 
-### 1. Database — Supabase
-
-1. Create a project at [supabase.com](https://supabase.com).
-2. Go to **Project Settings → Database → Connection Pooling** and copy the **Session pooler** connection string (port `5432`).
-   > ⚠️ Use the **pooler** URL, not the direct `db.<project>.supabase.co` connection. Supabase's direct connection is IPv6-only, and Render's network is IPv4-only — connecting directly throws `OperationalError: Network is unreachable`. The Session pooler URL is IPv4-compatible and avoids this entirely.
-3. The connection string looks like:
-   ```
-   postgresql://postgres.<project-ref>:<password>@aws-<region>.pooler.supabase.com:5432/postgres
-   ```
-   Keep this handy — it's your `DATABASE_URL`.
-
-### 2. Backend — Render
-
-1. New **Web Service** on [render.com](https://render.com), connect this repo.
-2. **Root Directory:** `backend`
-3. **Build Command:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-4. **Start Command:**
-   ```bash
-   uvicorn app.main:app --host 0.0.0.0 --port $PORT
-   ```
-   > Note it's `app.main:app`, not `main:app` — the FastAPI app lives inside the `app/` package.
-5. **Environment Variables:**
-
-   | Key | Value |
-   |---|---|
-   | `GEMINI_API_KEY` | Your Gemini API key from [Google AI Studio](https://aistudio.google.com/) |
-   | `DATABASE_URL` | The Supabase **Session pooler** URL from step 1 |
-   | `PROJECT_NAME` | `SnapFix AI` (optional, has a default) |
-
-6. Deploy, then verify at `https://<your-service>.onrender.com/health` — should return `{"status":"healthy","database":"connected"}`. Database tables are created automatically on startup (`Base.metadata.create_all`), so no manual migration step is needed on a fresh database.
-
-   > **Free tier note:** Render's free web services spin down after 15 minutes of inactivity — the first request after idle takes 30–60 seconds to wake up. Fine for personal/demo use; ping `/health` before a live demo to warm it up.
-
-### 3. Frontend — Vercel
-
-1. New **Project** on [vercel.com](https://vercel.com), connect this repo.
-2. **Root Directory:** `frontend`
-3. Build command and output directory are auto-detected (Vite).
-4. **Environment Variable:**
-
-   | Key | Value |
-   |---|---|
-   | `VITE_API_BASE_URL` | Your Render backend URL, e.g. `https://snapfix-ai-backend.onrender.com` (no trailing slash) |
-
-5. A `vercel.json` rewrite rule is already included in `frontend/` so client-side routing (React Router) doesn't 404 on page refresh.
-6. Deploy, then open the live Vercel URL and submit a test report — check the browser Network tab to confirm the request goes to your `onrender.com` backend and returns `201 Created`.
-
+> **Note:** The backend runs on Render's free tier and may take 30–90 seconds to wake up after about 15 minutes of inactivity.
 ---
 
 # 📷 Screenshots
