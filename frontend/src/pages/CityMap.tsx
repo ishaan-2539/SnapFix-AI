@@ -91,7 +91,7 @@ export default function CityMap({ standalone = false, reportPath = "/app/report"
   };
 
   return (
-    <div className="relative h-[100dvh] w-full overflow-hidden bg-ink-100">
+    <div className="relative h-[calc(100dvh-56px)] lg:h-full w-full overflow-hidden bg-ink-100">
       {/* Top bar */}
       <div className="absolute top-0 inset-x-0 z-[500] p-3 sm:p-4 flex flex-col gap-2.5">
         <div className="flex items-center gap-2.5">

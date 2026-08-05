@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { Home, Map, FileText, Camera, ArrowLeft } from "lucide-react";
 import { LogoMark, Logo } from "@/components/ui/Logo";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,8 @@ const navItems = [
 
 export function CitizenLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isFullBleed = location.pathname.startsWith("/app/map");
 
   return (
     <div className="min-h-screen bg-ink-50 lg:flex">
@@ -60,7 +62,7 @@ export function CitizenLayout() {
       </aside>
 
       {/* Mobile top bar */}
-      <header className="lg:hidden sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-ink-200 h-14 flex items-center justify-between px-4">
+      <header className="lg:hidden sticky top-0 z-[1000] bg-white/90 backdrop-blur-md border-b border-ink-200 h-14 flex items-center justify-between px-4">
         <button onClick={() => navigate("/")} aria-label="Back to landing page">
           <LogoMark className="text-brand-600" />
         </button>
@@ -68,12 +70,12 @@ export function CitizenLayout() {
         <div className="w-8" />
       </header>
 
-      <main className="flex-1 min-w-0 pb-20 lg:pb-0">
+      <main className={cn("flex-1 min-w-0 lg:pb-0", isFullBleed ? "" : "pb-20")}>
         <Outlet />
       </main>
 
       {/* Mobile bottom nav */}
-      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-ink-200 grid grid-cols-5 h-[68px] px-1 pb-[env(safe-area-inset-bottom)]">
+      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-[1000] bg-white border-t border-ink-200 grid grid-cols-5 h-[68px] px-1 pb-[env(safe-area-inset-bottom)]">
         {navItems.slice(0, 2).map((item) => (
           <NavLink
             key={item.to}
