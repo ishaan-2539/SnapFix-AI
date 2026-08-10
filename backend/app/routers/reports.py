@@ -4,6 +4,8 @@ from typing import List, Any
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
+import logging
+from app.services.storage_service import upload_report_image
 
 from app.core.database import get_db
 from app.models.report_model import Report
@@ -17,6 +19,8 @@ from app.utils.geo import calculate_haversine_distance
 from app.utils.hashing import generate_image_hash
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
 
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -148,16 +152,23 @@ async def create_report(
             return existing_report
 
     # ------------------------------------------------------------------
-    # Step 6: Save File to Disk (Only for NEW unique issues)
+    # Step 6: Upload photo to Supabase Storage (Only for NEW unique issues)
     # ------------------------------------------------------------------
     file_ext = os.path.splitext(file.filename or "")[1] or ".jpg"
     unique_filename = f"{uuid.uuid4().hex}{file_ext}"
-    file_path = os.path.join(UPLOAD_DIR, unique_filename)
 
-    with open(file_path, "wb") as f:
-        f.write(contents)
-
-    image_url = f"/uploads/{unique_filename}"
+    try:
+        image_url = upload_report_image(contents, unique_filename, mime_type)
+    except Exception as e:
+        # Same philosophy as ai_service.py's fallback: a storage hiccup
+        # should not take down report creation entirely. Fall back to
+        # local disk so the demo keeps working; this copy just won't
+        # survive a Render restart, same as before this fix.
+        logger.error(f"Supabase Storage upload failed ({e}); falling back to local disk.")
+        file_path = os.path.join(UPLOAD_DIR, unique_filename)
+        with open(file_path, "wb") as f:
+            f.write(contents)
+        image_url = f"/uploads/{unique_filename}"
 
     # ------------------------------------------------------------------
     # Step 7: Create & Persist New Ticket
