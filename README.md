@@ -478,7 +478,7 @@ SnapFix-AI/
 │   │   ├── services/
 │   │   └── utils/
 │   │
-│   ├── uploads/
+│   ├── uploads/          # Local fallback only — primary photo storage is Supabase Storage
 │   ├── requirements.txt
 │   └── main.py
 │
@@ -645,6 +645,11 @@ PROJECT_NAME="SnapFix AI"
 DATABASE_URL="sqlite:///./snapfix.db"
 
 GEMINI_API_KEY="YOUR_API_KEY"
+
+# Supabase Storage — persistent photo storage (survives server restarts)
+SUPABASE_URL="https://your-project.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="your_supabase_service_role_or_secret_key"
+SUPABASE_STORAGE_BUCKET="report-images"
 ```
 
 ---
@@ -713,6 +718,7 @@ http://localhost:5173
 - **Backend API:** https://snapfix-ai-aury.onrender.com
 
 > **Note:** The backend runs on Render's free tier and may take 30–90 seconds to wake up after about 15 minutes of inactivity.
+> Uploaded photos are stored in **Supabase Storage**, not on the backend's local disk — so they persist across restarts, sleep cycles, and redeploys.
 ---
 
 # 📷 Screenshots
@@ -757,16 +763,16 @@ http://localhost:5173
 
 The current implementation provides a strong foundation for future expansion.
 
+> ✅ Already shipped since the initial build: **PostgreSQL migration** (Supabase, replacing SQLite) and **cloud object storage for photos** (Supabase Storage, replacing local disk).
+
 Potential enhancements include:
 
 - User Authentication & Role-Based Access Control
-- PostgreSQL Migration
 - Redis Caching
 - WebSocket-based Live Updates
 - Push Notifications
 - Mobile Application
 - Multi-language Support
-- Cloud Object Storage (AWS S3 / Cloudinary)
 - Background Task Queue
 - ML-based Severity Prediction
 - GIS Heatmaps

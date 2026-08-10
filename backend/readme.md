@@ -150,7 +150,8 @@ backend/
 │   ├── services/
 │   │   ├── __init__.py
 │   │   ├── ai_service.py         # Gemini Vision AI integration & backoff logic
-│   │   └── pdf_service.py        # ReportLab PDF work order generator
+│   │   ├── pdf_service.py        # ReportLab PDF work order generator
+│   │   └── storage_service.py    # Supabase Storage upload (persistent photo storage)
 │   ├── utils/
 │   │   ├── __init__.py
 │   │   ├── exif.py               # EXIF GPS metadata extraction
@@ -160,7 +161,7 @@ backend/
 │       ├── __init__.py
 │       ├── analytics.py          # Municipal metrics & hotspots router
 │       └── reports.py            # Report CRUD & status sub-resource router
-├── uploads/                      # Local file storage for uploaded images
+├── uploads/                      # Local fallback storage only — used if a Supabase upload fails
 ├── main.py                       # Application entrypoint, CORS, static mounting
 ├── requirements.txt              # Project dependencies
 └── .env.example                  # Environment template
@@ -176,7 +177,7 @@ backend/
 | Column | Type | Constraints / Default | Description |
 | --- | --- | --- | --- |
 | `id` | `Integer` | `Primary Key`, `Autoincrement` | Unique report ID |
-| `image_url` | `String` | `Nullable=False` | Relational path to file (`/uploads/...`) |
+| `image_url` | `String` | `Nullable=False` | Public Supabase Storage URL (falls back to `/uploads/...` if storage is unreachable) |
 | `image_hash` | `String` | `Nullable=True`, `Index=True` | Perceptual image hash |
 | `latitude` | `Float` | `Nullable=False` | Latitude coordinate |
 | `longitude` | `Float` | `Nullable=False` | Longitude coordinate |
@@ -241,6 +242,12 @@ Create a `.env` file in the `backend/` root directory:
 PROJECT_NAME="SnapFix AI Engine"
 GEMINI_API_KEY="your_gemini_api_key_here"
 DATABASE_URL="sqlite:///./snapfix.db"
+
+# Supabase Storage — persistent photo storage
+# Without these, uploads silently fall back to local disk (see storage_service.py)
+SUPABASE_URL="https://your-project.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="your_supabase_service_role_or_secret_key"
+SUPABASE_STORAGE_BUCKET="report-images"
 
 ```
 
