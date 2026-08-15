@@ -6,7 +6,7 @@ import L from "leaflet";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { SeverityBadge, StatusBadge, PriorityBadge, UpvoteBadge } from "@/components/report/IssueBadges";
+import { SeverityBadge, StatusBadge, PriorityBadge, UpvoteBadge,PriorityRatingBadge} from "@/components/report/IssueBadges";
 import { api, extractErrorMessage, toImageUrl } from "@/lib/api";
 import { categoryIcon, formatDateTime, googleMapsLink, severityHex } from "@/lib/utils";
 import type { ReportResponse } from "@/types/api";
@@ -97,7 +97,7 @@ export default function ReportDetails() {
           </div>
           <div className="flex flex-wrap gap-2">
             <StatusBadge status={report.status} />
-            <SeverityBadge score={report.severity_score} />
+            <PriorityRatingBadge score={report.priority_score} />
             <PriorityBadge score={report.priority_score} />
             <UpvoteBadge count={report.upvotes} />
             <ForensicTags

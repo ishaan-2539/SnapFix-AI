@@ -21,11 +21,18 @@ export function cn(...inputs: ClassValue[]) {
 export type SeverityTier = "low" | "medium" | "high";
 
 export function severityTier(score: number): SeverityTier {
-  if (score >= 8) return "high";
+  if (score >= 5) return "high";
+  if (score >= 3) return "medium";
+  return "low";
+}
+export type PriorityTier = "low" | "medium" | "high" | "critical";
+
+export function priorityTier(score: number): PriorityTier {
+  if (score >= 9) return "critical";
+  if (score >= 7) return "high";
   if (score >= 4) return "medium";
   return "low";
 }
-
 export const severityTokens: Record<
   SeverityTier,
   { text: string; bg: string; border: string; solid: string; ring: string; label: string }

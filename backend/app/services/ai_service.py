@@ -24,6 +24,31 @@ FALLBACK_RESPONSE: Dict[str, Any] = {
     "is_valid_civic_issue": True
 }
 
+def is_non_retryable_gemini_error(error: Exception) -> bool:
+    error_text = str(error).lower()
+
+    non_retryable_patterns = (
+        # Daily/project quota exhausted
+        "generaterequestsperday",
+        "perdayperproject",
+        "daily quota",
+
+        # Invalid/unavailable model
+        "model is no longer available",
+        "not available to new users",
+        "model not found",
+        "not found",
+
+        # Authentication/configuration problems
+        "api key not valid",
+        "invalid api key",
+    )
+
+    return any(
+        pattern in error_text
+        for pattern in non_retryable_patterns
+    )
+
 def analyze_infrastructure_image(
     image_bytes: bytes, 
     mime_type: str = "image/jpeg", 
@@ -39,7 +64,7 @@ def analyze_infrastructure_image(
         genai.configure(api_key=api_key)  # type: ignore[attr-defined]
 
         model = genai.GenerativeModel(  # type: ignore[attr-defined]
-            model_name="gemini-flash-latest",
+            model_name="gemini-3.6-flash",
             generation_config={"response_mime_type": "application/json"}
         )
 
@@ -125,22 +150,62 @@ Do not invent information that cannot be visually determined.
             "data": image_bytes
         }
 
-        # Retry Loop (Up to 3 attempts)
+        # Retry only transient failures.
+        # Permanent quota/model/configuration errors immediately
+        # trigger the SnapFix failsafe.
+
         for attempt in range(1, max_retries + 1):
             try:
-                logger.info(f"🤖 [Gemini Vision Call]: Attempt {attempt}/{max_retries}")
-                response = model.generate_content([prompt, image_part])
+                logger.info(
+                    f"🤖 [Gemini Vision Call]: "
+                    f"Attempt {attempt}/{max_retries}"
+                )
+
+                response = model.generate_content(
+                    [prompt, image_part]
+                )
+
                 raw_result = json.loads(response.text)
-                validated_result = AIReportAnalysis.model_validate(raw_result)
+
+                validated_result = AIReportAnalysis.model_validate(
+                    raw_result
+                )
+
+                logger.info(
+                    "✅ [Gemini Vision] Analysis successful"
+                )
 
                 return validated_result.model_dump()
 
             except Exception as e:
-                logger.warning(f"⚠️ [Gemini Attempt {attempt} Failed]: {e}")
+
+                # ---------------------------------------------
+                # PERMANENT ERROR → DO NOT RETRY
+                # ---------------------------------------------
+                if is_non_retryable_gemini_error(e):
+                    logger.error(
+                        f"🚫 [Gemini Non-Retryable Error]: {e}"
+                    )
+                    raise
+
+                # ---------------------------------------------
+                # TRANSIENT ERROR → RETRY
+                # ---------------------------------------------
+                logger.warning(
+                    f"⚠️ [Gemini Attempt {attempt} Failed]: {e}"
+                )
+
                 if attempt < max_retries:
-                    time.sleep(attempt)
+                    wait_seconds = attempt * 2
+
+                    logger.info(
+                        f"🔄 [Gemini Retry] "
+                        f"Waiting {wait_seconds}s..."
+                    )
+
+                    time.sleep(wait_seconds)
                 else:
-                    raise e
+                    raise
 
     except Exception as final_error:
         logger.error(f"⚠️ [DEMO FAILSAFE TRIGGERED]: Gemini API failed ({final_error}). Returning default civic analysis.")

@@ -151,7 +151,7 @@ export default function OperationsDashboard() {
               value={activeAverageSeverity !== null ? activeAverageSeverity.toFixed(1) : "—"}
               icon={Gauge}
               tone="warn"
-              suffix={activeAverageSeverity !== null ? "/10" : undefined}
+              suffix={activeAverageSeverity !== null ? "/6" : undefined}
             />
           </div>
         )
