@@ -46,7 +46,7 @@ def calculate_priority_score(
     *,
     severity_score: int | float,
     spatial_context: dict[str, Any] | None = None,
-    corroborating_reports: int = 1,
+    corroborating_reports: int =1,
 ) -> dict[str, Any]:
     """
     Calculate SnapFix's deterministic contextual priority score.
@@ -134,15 +134,20 @@ def calculate_priority_score(
             road_modifier = 0.5
 
 
-    additional_reports = max(corroborating_reports - 1, 0)
-
-    density_bonus = min(
-        additional_reports * 0.5,
-        2.0,
-    )
 
     # --------------------------------------------------------------
-    # 5. Final deterministic score
+    # 5. Community corroboration
+    # --------------------------------------------------------------
+    # Each additional independent report of the same issue is real-world
+    # confirmation it's worse/more disruptive than a single sighting.
+    # Capped so a viral report can't blow past the 0–10 scale on its own.
+
+    corroboration_modifier = 0.0
+    if corroborating_reports and corroborating_reports > 1:
+        corroboration_modifier = min((corroborating_reports - 1) * 0.2, 1.5)
+
+    # --------------------------------------------------------------
+    # 6. Final deterministic score
     # --------------------------------------------------------------
 
     final_score = _clamp_score(
@@ -150,10 +155,8 @@ def calculate_priority_score(
         + school_modifier
         + hospital_modifier
         + road_modifier
-        +density_bonus
+        + corroboration_modifier
     )
-    
-
     return {
         "priority_score": final_score,
         "breakdown": {
@@ -173,8 +176,8 @@ def calculate_priority_score(
             },
             "community_corroboration": {
                 "reports": corroborating_reports,
-                "additional_reports": additional_reports,
-                "modifier": density_bonus,
+                "additional_reports": max(corroborating_reports - 1, 0),
+                "modifier":corroboration_modifier,
             }
         },
     }

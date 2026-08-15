@@ -3,6 +3,7 @@ import {
   Users,
   Wrench,
   ShieldCheck,
+  Sparkles,
 } from "lucide-react";
 
 interface ForensicTagsProps {
@@ -22,18 +23,27 @@ export function ForensicTags({
 }: ForensicTagsProps) {
   return (
     <div className="space-y-4">
-      {/* AI Confidence */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-brand-600" />
-          <span className="text-sm font-semibold text-ink-800">
+      {/* Quick stats: AI confidence + repair complexity, paired so they read as one glance */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-xl bg-ink-50 p-3">
+          <div className="flex items-center gap-1.5 text-ink-500 text-xs font-semibold mb-1">
+            <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
             AI Confidence
-          </span>
+          </div>
+          <p className="font-display font-extrabold text-lg text-ink-900">
+            {Math.round(confidence * 100)}%
+          </p>
         </div>
 
-        <span className="text-sm font-bold text-ink-900">
-          {Math.round(confidence * 100)}%
-        </span>
+        <div className="rounded-xl bg-ink-50 p-3">
+          <div className="flex items-center gap-1.5 text-ink-500 text-xs font-semibold mb-1">
+            <Wrench className="w-3.5 h-3.5 shrink-0" />
+            Repair Complexity
+          </div>
+          <p className="font-display font-extrabold text-lg text-ink-900">
+            {repairComplexity}
+          </p>
+        </div>
       </div>
 
       {/* Hazards */}
@@ -82,30 +92,23 @@ export function ForensicTags({
         </div>
       )}
 
-      {/* Repair complexity */}
-      <div className="flex items-center gap-2">
-        <Wrench className="w-4 h-4 text-ink-500" />
-        <span className="text-sm text-ink-600">
-          Repair complexity:
-        </span>
-
-        <span className="text-sm font-bold text-ink-900">
-          {repairComplexity}
-        </span>
-        {recommendedAction && (
-        <div className="pt-3 border-t border-ink-100">
-            <div className="text-sm font-semibold text-ink-800 mb-1">
-            Recommended Action
+      {/* Recommended action — the actionable takeaway, so it gets real visual weight
+          instead of reading as a footnote under a divider. */}
+      {recommendedAction && (
+        <div className="rounded-xl bg-brand-50 border border-brand-100 p-3.5">
+          <div className="flex items-center gap-2 mb-1.5">
+            <div className="w-6 h-6 rounded-lg bg-brand-600 flex items-center justify-center shrink-0">
+              <Sparkles className="w-3.5 h-3.5 text-white" />
             </div>
-
-            <p className="text-sm text-ink-600 leading-relaxed">
+            <span className="text-xs font-bold text-brand-700 uppercase tracking-wide">
+              Recommended Action
+            </span>
+          </div>
+          <p className="text-sm text-ink-700 leading-relaxed">
             {recommendedAction}
-            </p>
+          </p>
         </div>
-        )}
-      </div>
+      )}
     </div>
-
-    
   );
 }
