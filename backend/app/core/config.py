@@ -16,6 +16,15 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_ROLE_KEY: str = ""
     SUPABASE_STORAGE_BUCKET: str = "report-images"
 
+    # OpenStreetMap / Overpass Spatial Intelligence
+    OVERPASS_API_URLS: list[str] = [
+        "https://overpass-api.de/api/interpreter",
+        "https://overpass.kumi.systems/api/interpreter",
+    ]
+
+    OVERPASS_SEARCH_RADIUS_METERS: int = 1000
+    OVERPASS_CONNECT_TIMEOUT_SECONDS: float = 10.0
+    OVERPASS_READ_TIMEOUT_SECONDS: float = 30.0
     class Config:
         env_file = ".env"
 

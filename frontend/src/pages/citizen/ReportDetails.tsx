@@ -10,6 +10,8 @@ import { SeverityBadge, StatusBadge, PriorityBadge, UpvoteBadge } from "@/compon
 import { api, extractErrorMessage, toImageUrl } from "@/lib/api";
 import { categoryIcon, formatDateTime, googleMapsLink, severityHex } from "@/lib/utils";
 import type { ReportResponse } from "@/types/api";
+import { ForensicTags } from "@/components/report/ForensicTags";
+
 
 export default function ReportDetails() {
   const { id } = useParams();
@@ -98,6 +100,13 @@ export default function ReportDetails() {
             <SeverityBadge score={report.severity_score} />
             <PriorityBadge score={report.priority_score} />
             <UpvoteBadge count={report.upvotes} />
+            <ForensicTags
+              hazards={report.hazards}
+              affectedUsers={report.affected_users}
+              repairComplexity={report.repair_complexity ?? "Unknown"}
+              confidence={report.ai_confidence ?? 0}
+              recommendedAction={report.recommended_action}
+            />
           </div>
         </div>
       </Card>

@@ -18,13 +18,20 @@ export interface ReportResponse {
   latitude: number;
   longitude: number;
   category: string;
-  severity_score: number; // 1-10
+  severity_score: number;
   summary: string;
   is_valid_civic_issue: boolean;
   upvotes: number;
-  priority_score: number; // severity_score + (upvotes - 1)
+  priority_score: number;
   status: ReportStatus;
-  created_at: string; // ISO 8601
+  created_at: string;
+
+  // AI Forensic Telemetry
+  ai_confidence: number | null;
+  hazards: string[];
+  affected_users: string[];
+  repair_complexity: string | null;
+  recommended_action: string | null;
 }
 
 export interface AnalyticsStats {

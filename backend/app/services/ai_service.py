@@ -4,14 +4,23 @@ import json
 from typing import Dict, Any
 import google.generativeai as genai  # type: ignore[import-untyped]
 from app.core.config import settings
+from app.schemas.report_schema import AIReportAnalysis
 
 logger = logging.getLogger("snapfix_ai.vision")
 
 # Zero-Downtime Demo Failsafe Payload
 FALLBACK_RESPONSE: Dict[str, Any] = {
     "category": "Pothole",
-    "severity_score": 7,
-    "summary": "Automated Inspection Fallback: Structural asphalt damage detected on roadway surface creating potential hazard.",
+    "base_severity": 3,
+    "confidence": 0.5,
+    "hazards": ["Potential vehicle hazard"],
+    "affected_users": ["Motorists"],
+    "repair_complexity": "Moderate",
+    "recommended_action": "Inspect and schedule road repair.",
+    "summary": (
+        "Automated inspection fallback: structural asphalt damage "
+        "detected on roadway surface."
+    ),
     "is_valid_civic_issue": True
 }
 
@@ -35,13 +44,80 @@ def analyze_infrastructure_image(
         )
 
         prompt = """
-        You are an expert municipal infrastructure inspector. Analyze this photo and return a JSON object:
-        {
-          "category": "Pothole" | "Trash / Garbage" | "Water Leak" | "Damaged Streetlight" | "Road Damage" | "Broken Sidewalk" | "Other",
-          "severity_score": integer (1 to 10),
-          "summary": "1-2 sentence municipal brief",
-          "is_valid_civic_issue": boolean (true if public civic issue, false if selfie/pet/document)
-        }
+        You are an expert municipal infrastructure inspection AI.
+
+Analyze ONLY what is visually observable in the uploaded image.
+
+Your job is to extract structured visual hazard telemetry.
+DO NOT calculate final civic priority.
+
+IMPORTANT SEVERITY RULE:
+base_severity is ONLY the physical severity visible in the image.
+
+Do NOT increase base_severity because of:
+- nearby schools
+- hospitals
+- traffic
+- road importance
+- number of reports
+- duplicate reports
+- location
+- time of day
+- population density
+- political or social importance
+
+Those factors will be handled separately by SnapFix's deterministic
+context engine.
+
+Use this scale:
+
+1 = negligible/cosmetic issue
+2 = minor issue with little immediate risk
+3 = noticeable issue requiring maintenance
+4 = significant infrastructure defect
+5 = serious hazard requiring prompt attention
+6 = severe visible hazard with immediate safety implications
+
+Return ONLY valid JSON matching this structure:
+
+{
+  "is_valid_civic_issue": true,
+  "category": "Pothole",
+  "base_severity": 1,
+  "confidence": 0.0,
+  "hazards": [],
+  "affected_users": [],
+  "repair_complexity": "Minor",
+  "recommended_action": "",
+  "summary": ""
+}
+
+Allowed categories:
+- Pothole
+- Trash / Garbage
+- Water Leak
+- Damaged Streetlight
+- Road Damage
+- Broken Sidewalk
+- Other
+
+Allowed repair_complexity values:
+- Minor
+- Moderate
+- Major
+
+Be conservative with severity.
+
+A small defect must NOT receive a high severity score simply because
+it could theoretically cause harm.
+
+Only assign severity 5-6 when the visible physical condition itself
+clearly represents a serious or immediate hazard.
+
+If the image is not a genuine public civic/infrastructure issue,
+set is_valid_civic_issue to false.
+
+Do not invent information that cannot be visually determined.
         """
 
         image_part = {
@@ -54,7 +130,10 @@ def analyze_infrastructure_image(
             try:
                 logger.info(f"🤖 [Gemini Vision Call]: Attempt {attempt}/{max_retries}")
                 response = model.generate_content([prompt, image_part])
-                return json.loads(response.text)
+                raw_result = json.loads(response.text)
+                validated_result = AIReportAnalysis.model_validate(raw_result)
+
+                return validated_result.model_dump()
 
             except Exception as e:
                 logger.warning(f"⚠️ [Gemini Attempt {attempt} Failed]: {e}")
