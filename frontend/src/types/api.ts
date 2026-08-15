@@ -23,6 +23,7 @@ export interface ReportResponse {
   is_valid_civic_issue: boolean;
   upvotes: number;
   priority_score: number;
+  priority_breakdown: Record<string, any> | null;
   status: ReportStatus;
   created_at: string;
 

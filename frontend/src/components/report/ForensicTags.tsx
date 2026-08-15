@@ -92,19 +92,20 @@ export function ForensicTags({
         </div>
       )}
 
-      {/* Recommended action — the actionable takeaway, so it gets real visual weight
-          instead of reading as a footnote under a divider. */}
+     {/* Recommended action — mirrors the AI Insights card style used elsewhere
+          in the app, so it reads as the confident, attention-getting takeaway
+          of this panel rather than a quiet footnote. */}
       {recommendedAction && (
-        <div className="rounded-xl bg-brand-50 border border-brand-100 p-3.5">
-          <div className="flex items-center gap-2 mb-1.5">
-            <div className="w-6 h-6 rounded-lg bg-brand-600 flex items-center justify-center shrink-0">
-              <Sparkles className="w-3.5 h-3.5 text-white" />
+        <div className="rounded-2xl bg-gradient-to-br from-brand-600 to-brand-700 p-5">
+          <div className="flex items-center gap-3 mb-2.5">
+            <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+              <Sparkles className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xs font-bold text-brand-700 uppercase tracking-wide">
+            <span className="text-sm font-bold text-white uppercase tracking-wide">
               Recommended Action
             </span>
           </div>
-          <p className="text-sm text-ink-700 leading-relaxed">
+          <p className="text-base text-brand-50 leading-relaxed">
             {recommendedAction}
           </p>
         </div>

@@ -59,12 +59,14 @@ export default function OpsAnalytics() {
     ].filter((d) => d.value > 0);
   }, [reports]);
 
-  const trendData = useMemo(() => {
+    const trendData = useMemo(() => {
     const byDay = new Map<string, number>();
-    reports.forEach((r) => {
-      const day = new Date(r.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric" });
-      byDay.set(day, (byDay.get(day) ?? 0) + 1);
-    });
+    [...reports]
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      .forEach((r) => {
+        const day = new Date(r.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric" });
+        byDay.set(day, (byDay.get(day) ?? 0) + 1);
+      });
     return Array.from(byDay.entries())
       .map(([date, count]) => ({ date, count }))
       .slice(-14);

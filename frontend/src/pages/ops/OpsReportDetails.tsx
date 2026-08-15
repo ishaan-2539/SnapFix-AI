@@ -4,6 +4,7 @@ import { ArrowLeft, MapPin, Clock, FileDown, ImageOff, Sparkles, AlertTriangle }
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { PriorityBreakdown } from "@/components/report/PriorityBreakdown";
 import { SeverityBadge, StatusBadge, PriorityBadge, UpvoteBadge } from "@/components/report/IssueBadges";
 import { StatusStepper } from "@/components/report/StatusStepper";
 import { api, extractErrorMessage, toImageUrl } from "@/lib/api";
@@ -90,7 +91,7 @@ export default function OpsReportDetails() {
               <UpvoteBadge count={report.upvotes} />
             </div>
           </Card>
-
+          <PriorityBreakdown breakdown={report.priority_breakdown} finalScore={report.priority_score} />
           <StatusStepper report={report} onUpdated={setReport} />
 
           <Card className="p-5">
