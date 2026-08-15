@@ -14,13 +14,14 @@ import {
   LineChart,
   Line,
 } from "recharts";
-import { BarChart3 } from "lucide-react";
+import { BarChart3, MapPinned } from "lucide-react";
 import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
 import { ChartSkeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { api, extractErrorMessage } from "@/lib/api";
-import { severityTier } from "@/lib/utils";
-import type { AnalyticsStats, ReportResponse } from "@/types/api";
+import { severityTier, haversineMeters } from "@/lib/utils";
+import type { AnalyticsStats, ReportResponse, ReportStatus } from "@/types/api";
 
 const SEVERITY_COLORS: Record<string, string> = { low: "#16a34a", medium: "#f59e0b", high: "#dc2626" };
 const CATEGORY_COLORS = ["#2563eb", "#60a5fa", "#16a34a", "#f59e0b", "#dc2626", "#94a3b8", "#1e40af"];
@@ -68,7 +69,54 @@ export default function OpsAnalytics() {
       .map(([date, count]) => ({ date, count }))
       .slice(-14);
   }, [reports]);
+  // Groups every report — any status, any point in time — that landed within
+  // ~30m of the same category into one "location". 2+ reports at a location
+  // means the issue was resolved and came straight back: a signal that
+  // needs a root-cause fix, not another patch repair.
+  const HOTSPOT_RADIUS_METERS = 30;
 
+  const hotspots = useMemo(() => {
+    const clusters: { category: string; lat: number; lng: number; reports: ReportResponse[] }[] = [];
+
+    [...reports]
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      .forEach((r) => {
+        const match = clusters.find(
+          (c) =>
+            c.category === r.category &&
+            haversineMeters(c.lat, c.lng, r.latitude, r.longitude) <= HOTSPOT_RADIUS_METERS
+        );
+        if (match) match.reports.push(r);
+        else clusters.push({ category: r.category, lat: r.latitude, lng: r.longitude, reports: [r] });
+      });
+
+    return clusters
+      .filter((c) => c.reports.length >= 2)
+      .map((c) => {
+        const sorted = c.reports;
+        const first = sorted[0];
+        const last = sorted[sorted.length - 1];
+        const spanDays = (new Date(last.created_at).getTime() - new Date(first.created_at).getTime()) / 86_400_000;
+        return {
+          id: `${c.category}-${c.lat.toFixed(5)}-${c.lng.toFixed(5)}`,
+          category: c.category,
+          count: sorted.length,
+          latitude: c.lat,
+          longitude: c.lng,
+          firstReported: first.created_at,
+          lastReported: last.created_at,
+          avgDaysBetween: sorted.length > 1 ? spanDays / (sorted.length - 1) : null,
+          latestStatus: last.status as ReportStatus,
+        };
+      })
+      .sort((a, b) => b.count - a.count);
+  }, [reports]);
+
+  const repeatIssueRate = useMemo(() => {
+    if (reports.length === 0) return null;
+    const inHotspot = hotspots.reduce((sum, h) => sum + h.count, 0);
+    return Math.round((inHotspot / reports.length) * 100);
+  }, [hotspots, reports]);
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
       <div>
@@ -139,6 +187,59 @@ export default function OpsAnalytics() {
               </LineChart>
             </ResponsiveContainer>
           </Card>
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-display font-bold text-ink-900 flex items-center gap-2">
+                <MapPinned className="w-4.5 h-4.5 text-danger-600" />
+                Deterioration Hotspots
+              </h2>
+              {repeatIssueRate !== null && (
+                <span className="text-[11px] text-ink-400">{repeatIssueRate}% of all reports are repeat issues</span>
+              )}
+            </div>
+            {hotspots.length === 0 ? (
+              <Card>
+                <EmptyState
+                  icon={MapPinned}
+                  title="No recurring locations yet"
+                  description="Once the same issue is reported twice at one spot, it'll show up here."
+                />
+              </Card>
+            ) : (
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {hotspots.map((h) => (
+                  <Card key={h.id} className="p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-ink-900">{h.category}</span>
+                      <Badge tone={h.count >= 3 ? "danger" : "warn"}>{h.count}× reported</Badge>
+                    </div>
+                    <p className="text-xs text-ink-500">
+                      First seen{" "}
+                      {new Date(h.firstReported).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                      {" · last "}
+                      {new Date(h.lastReported).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                    </p>
+                    {h.avgDaysBetween !== null && (
+                      <p className="text-xs text-ink-500">Recurs roughly every {Math.max(1, Math.round(h.avgDaysBetween))} days</p>
+                    )}
+                    <p className={`text-xs font-semibold ${h.count >= 3 ? "text-danger-700" : "text-warn-700"}`}>
+                      {h.count >= 3
+                        ? "Needs a permanent fix, not another patch repair."
+                        : "Repeat issue — flag for root-cause inspection."}
+                    </p>
+                    <a
+                      href={`https://www.google.com/maps?q=${h.latitude},${h.longitude}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-brand-600 text-[11px] font-semibold inline-block pt-1"
+                    >
+                      View location →
+                    </a>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>

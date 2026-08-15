@@ -1,5 +1,6 @@
 import os
 import uuid
+import json
 from typing import List, Any
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import Response
@@ -10,6 +11,8 @@ from app.services.storage_service import upload_report_image
 from app.core.database import get_db
 from app.models.report_model import Report
 from app.schemas.report_schema import ReportResponse,StatusUpdateRequest
+from app.services.spatial_context_service import fetch_spatial_context
+from app.services.priority_engine import calculate_priority_score
 # Import directly from ai_service
 from app.services.ai_service import analyze_infrastructure_image as analyze_ai_image
 
@@ -25,6 +28,7 @@ logger = logging.getLogger(__name__)
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 DEDUPLICATION_RADIUS_METERS = 15.0  # 15 meters clustering threshold
+MIN_SPATIAL_DEDUP_CONFIDENCE = 0.80
 
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB Limit
@@ -87,10 +91,112 @@ async def create_report(
     mime_type = file.content_type or "image/jpeg"
     ai_result = analyze_ai_image(contents, mime_type)
 
-    is_valid = _get_field(ai_result, "is_valid_civic_issue", True)
-    category = _get_field(ai_result, "category", "Other")
-    severity_score = int(_get_field(ai_result, "severity_score", 5))
-    summary = str(_get_field(ai_result, "summary", "Infrastructure issue reported."))
+    is_valid = _get_field(
+        ai_result,
+        "is_valid_civic_issue",
+        True
+    )
+
+    category = _get_field(
+        ai_result,
+        "category",
+        "Other"
+    )
+
+    # Visual severity only.
+    # Contextual priority will be calculated later in Phase 2.
+    severity_score = int(
+        _get_field(
+            ai_result,
+            "base_severity",
+            3
+        )
+    )
+
+    summary = str(
+        _get_field(
+            ai_result,
+            "summary",
+            "Infrastructure issue reported."
+        )
+    )
+
+    # ---------------------------------------------------------
+    # AI FORENSIC TELEMETRY
+    # ---------------------------------------------------------
+
+    ai_confidence = float(
+        _get_field(
+            ai_result,
+            "confidence",
+            0.5
+        )
+    )
+
+    hazards = _get_field(
+        ai_result,
+        "hazards",
+        []
+    )
+
+    affected_users = _get_field(
+        ai_result,
+        "affected_users",
+        []
+    )
+
+    repair_complexity = str(
+        _get_field(
+            ai_result,
+            "repair_complexity",
+            "Moderate"
+        )
+    )
+
+    recommended_action = str(
+        _get_field(
+            ai_result,
+            "recommended_action",
+            "Inspect and schedule appropriate municipal maintenance."
+        )
+    )
+
+    # ---------------------------------------------------------
+    # CONTEXTUAL PRIORITY ENGINE
+    # ---------------------------------------------------------
+    # Gemini determines visual severity.
+    # SnapFix deterministically determines final priority
+    # using real-world spatial context.
+
+    spatial_context = fetch_spatial_context(
+        latitude,
+        longitude,
+    )
+
+    priority_result = calculate_priority_score(
+        severity_score=severity_score,
+        spatial_context=spatial_context,
+    )
+
+    priority_score = float(
+        priority_result["priority_score"]
+    )
+    priority_breakdown_json = json.dumps(
+        priority_result.get("breakdown", {})
+    )
+    print(
+    "\n"
+    "============================================================\n"
+    "🔥 SNAPFIX PRIORITY ENGINE RESULT\n"
+    "============================================================\n"
+    f"Base severity:   {severity_score}\n"
+    f"Final priority:  {priority_score}\n"
+    f"Breakdown:       {priority_result.get('breakdown')}\n"
+    "============================================================\n"
+    )
+    # PostgreSQL TEXT columns store these arrays as JSON strings.
+    hazards_json = json.dumps(hazards)
+    affected_users_json = json.dumps(affected_users)
 
     if not is_valid:
         raise HTTPException(
@@ -112,44 +218,124 @@ async def create_report(
     ).first()
 
     if existing_hash_report:
-        current_upvotes = int(getattr(existing_hash_report, "upvotes", 1) or 1) + 1
-        severity = int(getattr(existing_hash_report, "severity_score", 5) or 5)
+        current_upvotes = int(
+            getattr(existing_hash_report, "upvotes", 1) or 1
+        ) + 1
 
-        setattr(existing_hash_report, "upvotes", current_upvotes)  # type: ignore
-        setattr(existing_hash_report, "priority_score", severity + (current_upvotes - 1))  # type: ignore
+        existing_severity = int(
+            getattr(existing_hash_report, "severity_score", 5) or 5
+        )
+
+        existing_lat = float(
+            getattr(existing_hash_report, "latitude", 0.0)
+        )
+
+        existing_lon = float(
+            getattr(existing_hash_report, "longitude", 0.0)
+        )
+
+        existing_spatial_context = fetch_spatial_context(
+            existing_lat,
+            existing_lon,
+        )
+
+        priority_result = calculate_priority_score(
+            severity_score=existing_severity,
+            spatial_context=existing_spatial_context,
+            corroborating_reports=current_upvotes,
+        )
+
+        setattr(
+            existing_hash_report,
+            "upvotes",
+            current_upvotes,
+        )
+
+        setattr(
+            existing_hash_report,
+            "priority_score",
+            float(priority_result["priority_score"]),
+        )
+
+        setattr(
+            existing_hash_report,
+            "priority_breakdown",
+            json.dumps(priority_result["breakdown"]),
+        )
 
         db.commit()
         db.refresh(existing_hash_report)
+
         return existing_hash_report
 
     # ------------------------------------------------------------------
-    # Step 5: SPATIAL DE-DUPLICATION CHECK (CATEGORY-MATCHED + 15m RADIUS)
+    # Step 5: SPATIAL DE-DUPLICATION CHECK
     # ------------------------------------------------------------------
-    # 🚨 FIX: Only pull active reports that match the EXACT SAME CATEGORY!
-    category_matched_reports = db.query(Report).filter(
-        Report.status != "RESOLVED",
-        Report.category == category
-    ).all()
+    # Only perform spatial clustering when the AI classification is
+    # sufficiently confident. Low-confidence classifications are allowed
+    # to become new reports rather than accidentally merging unrelated
+    # incidents.
 
-    for existing_report in category_matched_reports:
-        existing_lat = float(getattr(existing_report, "latitude", 0.0))
-        existing_lon = float(getattr(existing_report, "longitude", 0.0))
+    if ai_confidence >= MIN_SPATIAL_DEDUP_CONFIDENCE:
 
-        dist = calculate_haversine_distance(
-            latitude, longitude,
-            existing_lat, existing_lon
-        )
+        category_matched_reports = db.query(Report).filter(
+            Report.status != "RESOLVED",
+            Report.category == category
+        ).all()
 
-        if dist <= DEDUPLICATION_RADIUS_METERS:
-            current_upvotes = int(getattr(existing_report, "upvotes", 1) or 1) + 1
-            severity = int(getattr(existing_report, "severity_score", 5) or 5)
+        for existing_report in category_matched_reports:
+            existing_lat = float(getattr(existing_report, "latitude", 0.0))
+            existing_lon = float(getattr(existing_report, "longitude", 0.0))
 
-            setattr(existing_report, "upvotes", current_upvotes)  # type: ignore
-            setattr(existing_report, "priority_score", severity + (current_upvotes - 1))  # type: ignore
+            dist = calculate_haversine_distance(
+                latitude,
+                longitude,
+                existing_lat,
+                existing_lon
+            )
 
-            db.commit()
-            db.refresh(existing_report)
-            return existing_report
+            if dist <= DEDUPLICATION_RADIUS_METERS:
+                current_upvotes = int(
+                    getattr(existing_report, "upvotes", 1) or 1
+                ) + 1
+
+                existing_severity = int(
+                    getattr(existing_report, "severity_score", 5) or 5
+                )
+
+                existing_spatial_context = fetch_spatial_context(
+                    existing_lat,
+                    existing_lon,
+                )
+
+                priority_result = calculate_priority_score(
+                    severity_score=existing_severity,
+                    spatial_context=existing_spatial_context,
+                    corroborating_reports=current_upvotes,
+                )
+
+                setattr(
+                    existing_report,
+                    "upvotes",
+                    current_upvotes,
+                )
+
+                setattr(
+                    existing_report,
+                    "priority_score",
+                    float(priority_result["priority_score"]),
+                )
+
+                setattr(
+                    existing_report,
+                    "priority_breakdown",
+                    json.dumps(priority_result["breakdown"]),
+                )
+
+                db.commit()
+                db.refresh(existing_report)
+
+                return existing_report
 
     # ------------------------------------------------------------------
     # Step 6: Upload photo to Supabase Storage (Only for NEW unique issues)
@@ -178,12 +364,29 @@ async def create_report(
         image_hash=img_hash,
         latitude=latitude,
         longitude=longitude,
+
         category=category,
+
+        # Visual severity from Gemini.
+        # NOT final contextual priority.
         severity_score=severity_score,
+
         summary=summary,
         is_valid_civic_issue=is_valid,
+
+        # AI forensic telemetry
+        ai_confidence=ai_confidence,
+        hazards=hazards_json,
+        affected_users=affected_users_json,
+        repair_complexity=repair_complexity,
+        recommended_action=recommended_action,
+
         upvotes=1,
-        priority_score=severity_score,
+
+        # Final deterministic contextual priority.
+        priority_score=priority_score,
+        priority_breakdown=priority_breakdown_json,
+
         status="OPEN"
     )
 
