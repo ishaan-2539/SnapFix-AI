@@ -85,11 +85,11 @@ export default function OpsReportDetails() {
               <span className="text-ink-300 text-sm ml-auto font-mono">#{report.id}</span>
             </div>
             <div className="flex flex-wrap gap-2">
-              <StatusBadge status={report.status} />
-              <PriorityRatingBadge score={report.priority_score} />
-              <PriorityBadge score={report.priority_score} />
-              <UpvoteBadge count={report.upvotes} />
-            </div>
+            <StatusBadge status={report.status} />
+            <SeverityBadge score={report.severity_score} />
+            <PriorityBadge score={report.priority_score} />
+            <UpvoteBadge count={report.upvotes} />
+          </div>
           </Card>
           <PriorityBreakdown breakdown={report.priority_breakdown} finalScore={report.priority_score} />
           <StatusStepper report={report} onUpdated={setReport} />

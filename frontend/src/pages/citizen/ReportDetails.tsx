@@ -96,18 +96,18 @@ export default function ReportDetails() {
             <span className="text-ink-300 text-sm ml-auto font-mono">#{report.id}</span>
           </div>
           <div className="flex flex-wrap gap-2">
-            <StatusBadge status={report.status} />
-            <PriorityRatingBadge score={report.priority_score} />
-            <PriorityBadge score={report.priority_score} />
-            <UpvoteBadge count={report.upvotes} />
-            <ForensicTags
-              hazards={report.hazards}
-              affectedUsers={report.affected_users}
-              repairComplexity={report.repair_complexity ?? "Unknown"}
-              confidence={report.ai_confidence ?? 0}
-              recommendedAction={report.recommended_action}
-            />
-          </div>
+          <StatusBadge status={report.status} />
+          <SeverityBadge score={report.severity_score} />
+          <PriorityRatingBadge score={report.priority_score} />
+          <UpvoteBadge count={report.upvotes} />
+          <ForensicTags
+            hazards={report.hazards}
+            affectedUsers={report.affected_users}
+            repairComplexity={report.repair_complexity ?? "Unknown"}
+            confidence={report.ai_confidence ?? 0}
+            recommendedAction={report.recommended_action}
+          />
+        </div>
         </div>
       </Card>
 
