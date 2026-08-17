@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
-import { Home, Map, FileText, Camera, ArrowLeft } from "lucide-react";
+import { Home, Map, FileText, Camera, ArrowLeft, ShieldCheck } from "lucide-react";
 import { LogoMark, Logo } from "@/components/ui/Logo";
 import { cn } from "@/lib/utils";
 
@@ -16,7 +16,6 @@ export function CitizenLayout() {
 
   return (
     <div className="min-h-screen bg-ink-50 lg:flex">
-      {/* Desktop sidebar */}
       <aside className="hidden lg:flex flex-col w-64 shrink-0 border-r border-ink-200 bg-white h-screen sticky top-0">
         <div className="h-16 flex items-center px-6 border-b border-ink-200">
           <button onClick={() => navigate("/")} aria-label="Back to landing page">
@@ -50,7 +49,7 @@ export function CitizenLayout() {
             Report an Issue
           </button>
         </div>
-        <div className="px-6 py-4 border-t border-ink-200">
+        <div className="px-6 py-4 border-t border-ink-200 flex items-center justify-between">
           <button
             onClick={() => navigate("/")}
             className="flex items-center gap-1.5 text-xs text-ink-400 hover:text-ink-700 font-medium"
@@ -58,23 +57,33 @@ export function CitizenLayout() {
             <ArrowLeft className="w-3.5 h-3.5" />
             Back to site
           </button>
+          <button
+            onClick={() => navigate("/login")}
+            className="text-xs text-ink-300 hover:text-ink-600 font-medium"
+          >
+            Municipal login
+          </button>
         </div>
       </aside>
 
-      {/* Mobile top bar */}
       <header className="lg:hidden sticky top-0 z-[1000] bg-white/90 backdrop-blur-md border-b border-ink-200 h-14 flex items-center justify-between px-4">
         <button onClick={() => navigate("/")} aria-label="Back to landing page">
           <LogoMark className="text-brand-600" />
         </button>
         <span className="font-display font-bold text-ink-900">SnapFix AI</span>
-        <div className="w-8" />
+        <button
+          onClick={() => navigate("/login")}
+          aria-label="Municipal login"
+          className="w-8 h-8 flex items-center justify-center text-ink-300 hover:text-ink-600"
+        >
+          <ShieldCheck className="w-4 h-4" />
+        </button>
       </header>
 
       <main className={cn("flex-1 min-w-0 lg:pb-0", isFullBleed ? "" : "pb-20")}>
         <Outlet />
       </main>
 
-      {/* Mobile bottom nav */}
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-[1000] bg-white border-t border-ink-200 grid grid-cols-5 h-[68px] px-1 pb-[env(safe-area-inset-bottom)]">
         {navItems.slice(0, 2).map((item) => (
           <NavLink

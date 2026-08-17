@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 import logging
 from app.services.storage_service import upload_report_image
 
+from app.core.auth import require_municipal
 from app.core.database import get_db
 from app.models.report_model import Report
 from app.schemas.report_schema import ReportResponse,StatusUpdateRequest
@@ -445,20 +446,21 @@ def download_report_pdf(report_id: int, db: Session = Depends(get_db)):
 def update_report_status(
     report_id: int,
     payload: StatusUpdateRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _user: dict = Depends(require_municipal),
 ):
     """
     Update the operational status of a civic report (OPEN -> IN_PROGRESS -> RESOLVED).
-    Transitions are unrestricted to allow reopening or status adjustments.
+    Restricted to municipal_staff accounts — enforced via JWT role claim.
     """
     report = db.query(Report).filter(Report.id == report_id).first()
     if not report:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Report with ID {report_id} not found."
-        )
+        )   
 
-    report.status = payload.status # type: ignore
+    report.status = payload.status  # type: ignore
     db.commit()
     db.refresh(report)
 

@@ -5,6 +5,7 @@ import type {
   MapPin,
   HealthResponse,
 } from "@/types/api";
+import { supabase } from "@/lib/supabase";
 
 // Base URL — configurable via env, falls back to the documented local dev server.
 export const BASE_URL: string =
@@ -12,6 +13,17 @@ export const BASE_URL: string =
 
 export const client = axios.create({
   baseURL: BASE_URL,
+});
+
+// Attach the current Supabase session token to every outgoing request.
+client.interceptors.request.use(async (config) => {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (token) {
+    config.headers = config.headers ?? {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
 });
 
 /** Builds a full, absolute URL for a relative image path returned by the API. */

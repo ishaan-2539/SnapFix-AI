@@ -144,7 +144,12 @@ export default function OperationsDashboard() {
         stats && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard label="Reports Today" value={stats.total_reports} icon={FileWarning} tone="brand" />
-            <KpiCard label="High Priority" value={reports.filter((r) => r.severity_score >= 8).length} icon={Flame} tone="danger" />
+            <KpiCard
+              label="High Priority"
+              value={reports.filter((r) => r.severity_score >= 5 && r.status !== "RESOLVED").length}
+              icon={Flame}
+              tone="danger"
+            />
             <KpiCard label="Resolved" value={stats.resolved_reports} icon={CheckCircle2} tone="ok" />
             <KpiCard
               label="Average Severity (Active)"

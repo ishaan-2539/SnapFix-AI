@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Map, BarChart3, Building2, ArrowLeft, Menu, X } from "lucide-react";
+import { LayoutDashboard, Map, BarChart3, Building2, ArrowLeft, Menu, X, LogOut } from "lucide-react";
 import { Logo, LogoMark } from "@/components/ui/Logo";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
 
 const navItems = [
   { to: "/ops", label: "Operations", icon: LayoutDashboard, end: true },
@@ -14,6 +15,7 @@ const navItems = [
 export function MunicipalLayout() {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { signOut } = useAuth();
 
   return (
     <div className="min-h-screen bg-ink-950 lg:flex">
@@ -54,13 +56,23 @@ export function MunicipalLayout() {
             </NavLink>
           ))}
         </nav>
-        <div className="px-6 py-5 border-t border-white/10">
+        <div className="px-6 py-5 border-t border-white/10 flex items-center justify-between">
           <button
             onClick={() => navigate("/")}
             className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/80 font-medium"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             Exit to site
+          </button>
+          <button
+            onClick={async () => {
+              await signOut();
+              navigate("/login");
+            }}
+            className="flex items-center gap-1.5 text-xs text-white/40 hover:text-red-400 font-medium"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            Log out
           </button>
         </div>
       </aside>
@@ -78,7 +90,16 @@ export function MunicipalLayout() {
             <LogoMark className="text-brand-600 w-6 h-6" />
             <span className="font-display font-bold text-sm text-ink-900">Ops Console</span>
           </div>
-          <div className="w-5" />
+          <button
+            onClick={async () => {
+              await signOut();
+              navigate("/login");
+            }}
+            aria-label="Log out"
+            className="text-ink-400 hover:text-red-600"
+          >
+            <LogOut className="w-5 h-5" />
+          </button>
         </header>
         <Outlet context={{ openMobileMenu: () => setMobileOpen(true) }} />
       </div>

@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     SUPABASE_URL: str = ""
     SUPABASE_SERVICE_ROLE_KEY: str = ""
     SUPABASE_STORAGE_BUCKET: str = "report-images"
+    SUPABASE_JWT_SECRET: str = ""
 
     # OpenStreetMap / Overpass Spatial Intelligence
     OVERPASS_API_URLS: list[str] = [

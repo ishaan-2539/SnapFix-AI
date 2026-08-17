@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Menu, X, Camera } from "lucide-react";
+import { Menu, X, Camera, ShieldCheck } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { Button } from "@/components/ui/Button";
 
@@ -44,7 +44,14 @@ export function PublicNav() {
             )}
           </nav>
 
-          <div className="hidden lg:flex items-center gap-3">
+           <div className="hidden lg:flex items-center gap-3">
+            <button
+              onClick={() => navigate("/login")}
+              className="flex items-center gap-1.5 text-xs font-medium text-ink-500 hover:text-brand-700 border border-ink-200 hover:border-brand-200 hover:bg-brand-50 rounded-full pl-2.5 pr-3 py-1.5 transition-colors"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              Municipal login
+            </button>
             <Button variant="ghost" size="sm" onClick={() => navigate("/app")}>
               Get Started
             </Button>
@@ -96,6 +103,13 @@ export function PublicNav() {
               <Camera className="w-4 h-4" />
               Report an Issue
             </Button>
+            <button
+              onClick={() => { setOpen(false); navigate("/login"); }}
+              className="flex items-center justify-center gap-1.5 text-xs font-medium text-ink-500 border border-ink-200 rounded-full py-2 mt-1"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              Municipal login
+            </button>
           </div>
         </div>
       )}
