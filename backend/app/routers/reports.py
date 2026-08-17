@@ -1,6 +1,8 @@
 import os
 import uuid
 import json
+import asyncio
+import time
 from typing import List, Any
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import Response
@@ -87,10 +89,20 @@ async def create_report(
         )
 
     # ------------------------------------------------------------------
-    # Step 2: AI Inspection & Guardrail Gatekeeper
+    # Step 2: AI Inspection + Spatial Context — run CONCURRENTLY.
+    # Neither depends on the other's output, so no reason to serialize them.
     # ------------------------------------------------------------------
     mime_type = file.content_type or "image/jpeg"
-    ai_result = analyze_ai_image(contents, mime_type)
+
+    t0 = time.perf_counter()
+
+    ai_result, spatial_context = await asyncio.gather(
+        asyncio.to_thread(analyze_ai_image, contents, mime_type),
+        asyncio.to_thread(fetch_spatial_context, latitude, longitude),
+    )
+
+    t1 = time.perf_counter()
+    logger.info(f"⏱️ AI + spatial context (parallel) took {t1 - t0:.2f}s")
 
     is_valid = _get_field(
         ai_result,
@@ -165,19 +177,18 @@ async def create_report(
     # ---------------------------------------------------------
     # CONTEXTUAL PRIORITY ENGINE
     # ---------------------------------------------------------
-    # Gemini determines visual severity.
-    # SnapFix deterministically determines final priority
-    # using real-world spatial context.
+    # spatial_context was already fetched above in parallel with the AI call.
 
-    spatial_context = fetch_spatial_context(
-        latitude,
-        longitude,
-    )
+    t2 = time.perf_counter()
 
     priority_result = calculate_priority_score(
         severity_score=severity_score,
         spatial_context=spatial_context,
     )
+
+    t3 = time.perf_counter()
+    logger.info(f"⏱️ Priority engine calc took {t3 - t2:.4f}s (should be near-instant)")
+    logger.info(f"⏱️ TOTAL request time so far: {t3 - t0:.2f}s")
 
     priority_score = float(
         priority_result["priority_score"]
