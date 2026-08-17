@@ -96,13 +96,22 @@ async def create_report(
 
     t0 = time.perf_counter()
 
-    ai_result, spatial_context = await asyncio.gather(
-        asyncio.to_thread(analyze_ai_image, contents, mime_type),
-        asyncio.to_thread(fetch_spatial_context, latitude, longitude),
-    )
+    async def timed_ai():
+        s = time.perf_counter()
+        result = await asyncio.to_thread(analyze_ai_image, contents, mime_type)
+        print(f"⏱️  Gemini AI call took {time.perf_counter() - s:.2f}s")
+        return result
+
+    async def timed_spatial():
+        s = time.perf_counter()
+        result = await asyncio.to_thread(fetch_spatial_context, latitude, longitude)
+        print(f"⏱️  Overpass spatial call took {time.perf_counter() - s:.2f}s")
+        return result
+
+    ai_result, spatial_context = await asyncio.gather(timed_ai(), timed_spatial())
 
     t1 = time.perf_counter()
-    logger.info(f"⏱️ AI + spatial context (parallel) took {t1 - t0:.2f}s")
+    print(f"⏱️  AI + spatial context (parallel) took {t1 - t0:.2f}s")
 
     is_valid = _get_field(
         ai_result,
@@ -187,8 +196,8 @@ async def create_report(
     )
 
     t3 = time.perf_counter()
-    logger.info(f"⏱️ Priority engine calc took {t3 - t2:.4f}s (should be near-instant)")
-    logger.info(f"⏱️ TOTAL request time so far: {t3 - t0:.2f}s")
+    print(f"⏱️  Priority engine calc took {t3 - t2:.4f}s (should be near-instant)")
+    print(f"⏱️  TOTAL request time so far: {t3 - t0:.2f}s")
 
     priority_score = float(
         priority_result["priority_score"]

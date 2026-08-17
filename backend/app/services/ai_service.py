@@ -64,7 +64,7 @@ def analyze_infrastructure_image(
         genai.configure(api_key=api_key)  # type: ignore[attr-defined]
 
         model = genai.GenerativeModel(  # type: ignore[attr-defined]
-            model_name="gemini-3.6-flash",
+            model_name="gemini-3.5-flash-lite",
             generation_config={"response_mime_type": "application/json"}
         )
 

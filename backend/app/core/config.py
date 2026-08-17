@@ -24,8 +24,8 @@ class Settings(BaseSettings):
     ]
 
     OVERPASS_SEARCH_RADIUS_METERS: int = 1000
-    OVERPASS_CONNECT_TIMEOUT_SECONDS: float = 10.0
-    OVERPASS_READ_TIMEOUT_SECONDS: float = 30.0
+    OVERPASS_CONNECT_TIMEOUT_SECONDS: float = 3.0
+    OVERPASS_READ_TIMEOUT_SECONDS: float = 6.0
     class Config:
         env_file = ".env"
 
