@@ -14,8 +14,9 @@ export function CitizenLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const isFullBleed = location.pathname.startsWith("/app/map");
-  const { session } = useAuth();
+  const { session, role } = useAuth();
   const initials = session?.user?.email ? session.user.email.slice(0, 2).toUpperCase() : null;
+  const isMunicipalStaff = role === "municipal_staff";
 
   return (
     <div className="min-h-screen bg-ink-50 lg:flex">
@@ -43,7 +44,16 @@ export function CitizenLayout() {
             </NavLink>
           ))}
         </nav>
-        <div className="p-3">
+        <div className="p-3 space-y-2">
+          {isMunicipalStaff && (
+            <button
+              onClick={() => navigate("/ops")}
+              className="w-full flex items-center justify-center gap-2 bg-ink-900 hover:bg-ink-800 text-white font-semibold text-sm py-3 rounded-xl transition-colors shadow-sm"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              Operations Dashboard
+            </button>
+          )}
           <button
             onClick={() => navigate("/app/report")}
             className="w-full flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm py-3 rounded-xl transition-colors shadow-sm"
@@ -84,23 +94,34 @@ export function CitizenLayout() {
           <LogoMark className="text-brand-600" />
         </button>
         <span className="font-display font-bold text-ink-900">SnapFix AI</span>
-        {initials ? (
-          <button
-            onClick={() => navigate("/app/profile")}
-            aria-label="Profile"
-            className="w-7 h-7 rounded-full bg-brand-50 text-brand-700 flex items-center justify-center text-[10px] font-bold"
-          >
-            {initials}
-          </button>
-        ) : (
-          <button
-            onClick={() => navigate("/login")}
-            aria-label="Sign in"
-            className="w-8 h-8 flex items-center justify-center text-ink-300 hover:text-ink-600"
-          >
-            <ShieldCheck className="w-4 h-4" />
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {isMunicipalStaff && (
+            <button
+              onClick={() => navigate("/ops")}
+              aria-label="Operations Dashboard"
+              className="w-7 h-7 rounded-full bg-ink-900 text-white flex items-center justify-center"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {initials ? (
+            <button
+              onClick={() => navigate("/app/profile")}
+              aria-label="Profile"
+              className="w-7 h-7 rounded-full bg-brand-50 text-brand-700 flex items-center justify-center text-[10px] font-bold"
+            >
+              {initials}
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate("/login")}
+              aria-label="Sign in"
+              className="w-8 h-8 flex items-center justify-center text-ink-300 hover:text-ink-600"
+            >
+              <ShieldCheck className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </header>
 
       <main className={cn("flex-1 min-w-0 lg:pb-0", isFullBleed ? "" : "pb-20")}>
