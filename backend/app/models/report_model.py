@@ -10,8 +10,12 @@ class Report(Base):
     image_hash = Column(String, index=True, nullable=True)
     latitude = Column(Float, nullable=False)
     longitude = Column(Float, nullable=False)
-    
-    
+
+    # Supabase auth user id (JWT "sub" claim) of whoever submitted this
+    # report. Nullable on purpose — guest/no-auth submissions are still
+    # allowed, so this column just stays NULL for those rows.
+    reporter_id = Column(String, index=True, nullable=True)
+
     # AI Extracted Fields
     category = Column(String, nullable=False, index=True)
 
