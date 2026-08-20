@@ -13,7 +13,6 @@ import CitizenHome from "@/pages/citizen/CitizenHome";
 import CitizenMap from "@/pages/citizen/CitizenMap";
 import ReportWizard from "@/pages/citizen/ReportWizard";
 import MyReports from "@/pages/citizen/MyReports";
-import Profile from "@/pages/citizen/Profile";
 import ReportDetails from "@/pages/citizen/ReportDetails";
 
 import { MunicipalLayout } from "@/components/layout/MunicipalLayout";
@@ -39,7 +38,6 @@ export default function App() {
               <Route path="map" element={<CitizenMap />} />
               <Route path="reports" element={<MyReports />} />
               <Route path="reports/:id" element={<ReportDetails />} />
-              <Route path="profile" element={<Profile />} />
             </Route>
             <Route path="/app/report" element={<ReportWizard />} />
 

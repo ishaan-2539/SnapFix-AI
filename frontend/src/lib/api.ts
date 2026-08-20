@@ -100,18 +100,6 @@ export const api = {
     return data;
   },
 
-  /**
-   * Requires an authenticated Supabase session — the axios interceptor
-   * above attaches the token automatically when one exists. Backend
-   * returns 401 for anonymous callers; useMyReports.ts only calls this
-   * when it knows a session is present and falls back to the
-   * localStorage-tracked ID list otherwise.
-   */
-  getMyReports: async (): Promise<ReportResponse[]> => {
-    const { data } = await client.get<ReportResponse[]>("/api/v1/reports/mine");
-    return data;
-  },
-
   pdfUrl: (id: number): string => `${BASE_URL}/api/v1/reports/${id}/pdf`,
 
   getStats: async (): Promise<AnalyticsStats> => {

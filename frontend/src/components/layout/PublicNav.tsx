@@ -50,7 +50,7 @@ export function PublicNav() {
               className="flex items-center gap-1.5 text-xs font-medium text-ink-500 hover:text-brand-700 border border-ink-200 hover:border-brand-200 hover:bg-brand-50 rounded-full pl-2.5 pr-3 py-1.5 transition-colors"
             >
               <ShieldCheck className="w-3.5 h-3.5" />
-              Sign in
+              Municipal login
             </button>
             <Button variant="ghost" size="sm" onClick={() => navigate("/app")}>
               Get Started
@@ -108,7 +108,7 @@ export function PublicNav() {
               className="flex items-center justify-center gap-1.5 text-xs font-medium text-ink-500 border border-ink-200 rounded-full py-2 mt-1"
             >
               <ShieldCheck className="w-3.5 h-3.5" />
-              Sign in
+              Municipal login
             </button>
           </div>
         </div>
