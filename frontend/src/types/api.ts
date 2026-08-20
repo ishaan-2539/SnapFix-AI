@@ -35,6 +35,14 @@ export interface ReportResponse {
   recommended_action: string | null;
 }
 
+export interface PaginatedReportResponse {
+  items: ReportResponse[];
+  total: number;
+  page: number;
+  size: number;
+  pages: number;
+}
+
 export interface AnalyticsStats {
   total_reports: number;
   open_reports: number;

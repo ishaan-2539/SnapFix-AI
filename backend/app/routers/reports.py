@@ -3,8 +3,9 @@ import uuid
 import json
 import asyncio
 import time
+import math
 from typing import List, Any
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 import logging
@@ -13,10 +14,9 @@ from app.services.storage_service import upload_report_image
 from app.core.auth import require_municipal, get_current_user, get_current_user_optional
 from app.core.database import get_db
 from app.models.report_model import Report
-from app.schemas.report_schema import ReportResponse,StatusUpdateRequest
+from app.schemas.report_schema import ReportResponse, PaginatedReportResponse, StatusUpdateRequest
 from app.services.spatial_context_service import fetch_spatial_context
 from app.services.priority_engine import calculate_priority_score
-# Import directly from ai_service
 from app.services.ai_service import analyze_infrastructure_image as analyze_ai_image
 
 from app.services.pdf_service import generate_report_pdf
@@ -26,21 +26,14 @@ from app.utils.hashing import generate_image_hash, hash_distance
 
 router = APIRouter()
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("snapfix_ai.reports")
 
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 DEDUPLICATION_RADIUS_METERS = 15.0  # 15 meters clustering threshold (Tier 2: category + radius)
 MIN_SPATIAL_DEDUP_CONFIDENCE = 0.80
 
-# Tier 1: perceptual-hash dedup. Slightly wider than the Tier 2 radius since
-# a strong visual match (same pothole, same angle) is trustworthy evidence
-# even if GPS drifted a bit more than DEDUPLICATION_RADIUS_METERS.
 HASH_DEDUP_RADIUS_METERS = 30.0
-# dhash is a 64-bit hash. 8-10 is a common starting threshold for "same
-# photo, re-compressed/re-cropped" — tune once we see real submission data.
-# Too low -> re-uploads of the same pothole slip through as new reports.
-# Too high -> unrelated potholes start merging into one ticket.
 HASH_DISTANCE_THRESHOLD = 10
 
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
@@ -80,9 +73,6 @@ async def create_report(
     db: Session = Depends(get_db),
     user: dict | None = Depends(get_current_user_optional),
 ):
-    # None for guest/anonymous submissions — the frontend's axios interceptor
-    # only attaches a token when a Supabase session exists, so this is None
-    # for anyone not logged in. Never required.
     reporter_id = user.get("sub") if user else None
 
     # ------------------------------------------------------------------
@@ -106,10 +96,6 @@ async def create_report(
 
     # ------------------------------------------------------------------
     # Step 1b: Generate Perceptual Hash + Tier 1 Dedup (Hamming distance)
-    #
-    # Runs BEFORE the AI/spatial calls on purpose: if this photo is a
-    # near-duplicate of an open report nearby, we bump corroboration and
-    # return immediately — Gemini and Overpass never get called for it.
     # ------------------------------------------------------------------
     img_hash = generate_image_hash(contents)
 
@@ -138,7 +124,6 @@ async def create_report(
         try:
             h_dist = hash_distance(img_hash, candidate_hash)
         except ValueError:
-            # Malformed/legacy hash string — skip rather than fail the request.
             continue
 
         if h_dist <= HASH_DISTANCE_THRESHOLD:
@@ -201,8 +186,6 @@ async def create_report(
 
     # ------------------------------------------------------------------
     # Step 2: AI Inspection + Spatial Context — run CONCURRENTLY.
-    # Neither depends on the other's output, so no reason to serialize them.
-    # Skipped entirely above for anything that matched Tier 1.
     # ------------------------------------------------------------------
     mime_type = file.content_type or "image/jpeg"
 
@@ -211,25 +194,21 @@ async def create_report(
     async def timed_ai():
         s = time.perf_counter()
         result = await asyncio.to_thread(analyze_ai_image, contents, mime_type)
-        print(f"⏱️  Gemini AI call took {time.perf_counter() - s:.2f}s")
+        logger.debug("Gemini AI call took %.2fs", time.perf_counter() - s)
         return result
 
     async def timed_spatial():
         s = time.perf_counter()
         result = await asyncio.to_thread(fetch_spatial_context, latitude, longitude)
-        print(f"⏱️  Overpass spatial call took {time.perf_counter() - s:.2f}s")
+        logger.debug("Overpass spatial call took %.2fs", time.perf_counter() - s)
         return result
 
     ai_result, spatial_context = await asyncio.gather(timed_ai(), timed_spatial())
 
     t1 = time.perf_counter()
-    print(f"⏱️  AI + spatial context (parallel) took {t1 - t0:.2f}s")
+    logger.debug("AI + spatial context (parallel) took %.2fs", t1 - t0)
 
-    is_valid = _get_field(
-        ai_result,
-        "is_valid_civic_issue",
-        True
-    )
+    is_valid = _get_field(ai_result, "is_valid_civic_issue", True)
 
     if not is_valid:
         raise HTTPException(
@@ -237,61 +216,19 @@ async def create_report(
             detail="Uploaded photo does not appear to contain a valid public civic infrastructure issue."
         )
 
-    category = _get_field(
-        ai_result,
-        "category",
-        "Other"
-    )
+    category = _get_field(ai_result, "category", "Other")
 
-    # Visual severity only.
-    # Contextual priority will be calculated later in Phase 2.
-    severity_score = int(
-        _get_field(
-            ai_result,
-            "base_severity",
-            3
-        )
-    )
+    severity_score = int(_get_field(ai_result, "base_severity", 3))
 
-    summary = str(
-        _get_field(
-            ai_result,
-            "summary",
-            "Infrastructure issue reported."
-        )
-    )
+    summary = str(_get_field(ai_result, "summary", "Infrastructure issue reported."))
 
-    # ---------------------------------------------------------
-    # AI FORENSIC TELEMETRY
-    # ---------------------------------------------------------
+    ai_confidence = float(_get_field(ai_result, "confidence", 0.5))
 
-    ai_confidence = float(
-        _get_field(
-            ai_result,
-            "confidence",
-            0.5
-        )
-    )
+    hazards = _get_field(ai_result, "hazards", [])
 
-    hazards = _get_field(
-        ai_result,
-        "hazards",
-        []
-    )
+    affected_users = _get_field(ai_result, "affected_users", [])
 
-    affected_users = _get_field(
-        ai_result,
-        "affected_users",
-        []
-    )
-
-    repair_complexity = str(
-        _get_field(
-            ai_result,
-            "repair_complexity",
-            "Moderate"
-        )
-    )
+    repair_complexity = str(_get_field(ai_result, "repair_complexity", "Moderate"))
 
     recommended_action = str(
         _get_field(
@@ -301,11 +238,6 @@ async def create_report(
         )
     )
 
-    # ---------------------------------------------------------
-    # CONTEXTUAL PRIORITY ENGINE
-    # ---------------------------------------------------------
-    # spatial_context was already fetched above in parallel with the AI call.
-
     t2 = time.perf_counter()
 
     priority_result = calculate_priority_score(
@@ -314,36 +246,21 @@ async def create_report(
     )
 
     t3 = time.perf_counter()
-    print(f"⏱️  Priority engine calc took {t3 - t2:.4f}s (should be near-instant)")
-    print(f"⏱️  TOTAL request time so far: {t3 - t0:.2f}s")
+    logger.debug("Priority engine calc took %.4fs", t3 - t2)
+    logger.debug("TOTAL request time so far: %.2fs", t3 - t0)
 
-    priority_score = float(
-        priority_result["priority_score"]
+    priority_score = float(priority_result["priority_score"])
+    priority_breakdown_json = json.dumps(priority_result.get("breakdown", {}))
+
+    logger.debug(
+        "Priority Engine Result: base_severity=%s, priority_score=%s, breakdown=%s",
+        severity_score,
+        priority_score,
+        priority_result.get("breakdown")
     )
-    priority_breakdown_json = json.dumps(
-        priority_result.get("breakdown", {})
-    )
-    print(
-    "\n"
-    "============================================================\n"
-    "🔥 SNAPFIX PRIORITY ENGINE RESULT\n"
-    "============================================================\n"
-    f"Base severity:   {severity_score}\n"
-    f"Final priority:  {priority_score}\n"
-    f"Breakdown:       {priority_result.get('breakdown')}\n"
-    "============================================================\n"
-    )
-    # PostgreSQL TEXT columns store these arrays as JSON strings.
+
     hazards_json = json.dumps(hazards)
     affected_users_json = json.dumps(affected_users)
-
-    # ------------------------------------------------------------------
-    # Step 5: SPATIAL DE-DUPLICATION CHECK (Tier 2 — category + radius)
-    # ------------------------------------------------------------------
-    # Only perform spatial clustering when the AI classification is
-    # sufficiently confident. Low-confidence classifications are allowed
-    # to become new reports rather than accidentally merging unrelated
-    # incidents.
 
     if ai_confidence >= MIN_SPATIAL_DEDUP_CONFIDENCE:
 
@@ -383,18 +300,12 @@ async def create_report(
                     corroborating_reports=current_upvotes,
                 )
 
-                setattr(
-                    existing_report,
-                    "upvotes",
-                    current_upvotes,
-                )
-
+                setattr(existing_report, "upvotes", current_upvotes)
                 setattr(
                     existing_report,
                     "priority_score",
                     float(priority_result["priority_score"]),
                 )
-
                 setattr(
                     existing_report,
                     "priority_breakdown",
@@ -406,57 +317,36 @@ async def create_report(
 
                 return existing_report
 
-    # ------------------------------------------------------------------
-    # Step 6: Upload photo to Supabase Storage (Only for NEW unique issues)
-    # ------------------------------------------------------------------
     file_ext = os.path.splitext(file.filename or "")[1] or ".jpg"
     unique_filename = f"{uuid.uuid4().hex}{file_ext}"
 
     try:
         image_url = upload_report_image(contents, unique_filename, mime_type)
     except Exception as e:
-        # Same philosophy as ai_service.py's fallback: a storage hiccup
-        # should not take down report creation entirely. Fall back to
-        # local disk so the demo keeps working; this copy just won't
-        # survive a Render restart, same as before this fix.
-        logger.error(f"Supabase Storage upload failed ({e}); falling back to local disk.")
+        logger.error("Supabase Storage upload failed (%s); falling back to local disk.", e)
         file_path = os.path.join(UPLOAD_DIR, unique_filename)
         with open(file_path, "wb") as f:
             f.write(contents)
         image_url = f"/uploads/{unique_filename}"
 
-    # ------------------------------------------------------------------
-    # Step 7: Create & Persist New Ticket
-    # ------------------------------------------------------------------
     new_report = Report(
         image_url=image_url,
         image_hash=img_hash,
         latitude=latitude,
         longitude=longitude,
         reporter_id=reporter_id,
-
         category=category,
-
-        # Visual severity from Gemini.
-        # NOT final contextual priority.
         severity_score=severity_score,
-
         summary=summary,
         is_valid_civic_issue=is_valid,
-
-        # AI forensic telemetry
         ai_confidence=ai_confidence,
         hazards=hazards_json,
         affected_users=affected_users_json,
         repair_complexity=repair_complexity,
         recommended_action=recommended_action,
-
         upvotes=1,
-
-        # Final deterministic contextual priority.
         priority_score=priority_score,
         priority_breakdown=priority_breakdown_json,
-
         status="OPEN"
     )
 
@@ -467,16 +357,32 @@ async def create_report(
     return new_report
 
 
-def inspect_is_coroutine(fn: Any) -> bool:
-    """Helper to check if AI function call is async or sync."""
-    import asyncio
-    return asyncio.iscoroutinefunction(fn)
+@router.get("/", response_model=PaginatedReportResponse)
+def get_all_reports(
+    page: int = Query(1, ge=1, description="Page number"),
+    size: int = Query(20, ge=1, le=100, description="Items per page"),
+    db: Session = Depends(get_db)
+):
+    """Retrieve submitted civic reports with pagination."""
+    total = db.query(Report).count()
+    pages = math.ceil(total / size) if total > 0 else 0
+    offset = (page - 1) * size
 
+    items = (
+        db.query(Report)
+        .order_by(Report.id.desc())
+        .offset(offset)
+        .limit(size)
+        .all()
+    )
 
-@router.get("/", response_model=List[ReportResponse])
-def get_all_reports(db: Session = Depends(get_db)):
-    """Retrieve all submitted civic reports."""
-    return db.query(Report).order_by(Report.id.desc()).all()
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "size": size,
+        "pages": pages,
+    }
 
 
 @router.get("/mine", response_model=List[ReportResponse])
@@ -484,15 +390,7 @@ def get_my_reports(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
-    """
-    Retrieve reports submitted by the currently authenticated citizen.
-    Requires login — there's no reporter_id to scope to for guests, who
-    keep using the localStorage-tracked list on the frontend instead.
-
-    NOTE: this route must stay registered before /{report_id} below —
-    otherwise FastAPI tries to parse "mine" as the int report_id and
-    returns a 422 instead of ever reaching this handler.
-    """
+    """Retrieve reports submitted by the currently authenticated citizen."""
     reporter_id = user.get("sub")
     return (
         db.query(Report)
@@ -534,6 +432,7 @@ def download_report_pdf(report_id: int, db: Session = Depends(get_db)):
         }
     )
 
+
 @router.patch("/{report_id}/status", response_model=ReportResponse)
 def update_report_status(
     report_id: int,
@@ -550,7 +449,7 @@ def update_report_status(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Report with ID {report_id} not found."
-        )   
+        )
 
     report.status = payload.status  # type: ignore
     db.commit()

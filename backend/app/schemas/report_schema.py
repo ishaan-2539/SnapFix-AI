@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, model_validator
 from datetime import datetime
-from typing import Literal , Any
+from typing import Literal, Any
 import json
 
 # 1. Gemini Vision Structured Output Schema
@@ -64,7 +64,8 @@ class AIReportAnalysis(BaseModel):
     summary: str = Field(
         description="Concise 2-3 sentence formal municipal incident summary."
     )
-# 2. Endpoint JSON Response Schema
+
+# 2. Endpoint JSON Response Schema (reporter_id explicitly excluded)
 class ReportResponse(BaseModel):
     id: int
     image_url: str
@@ -130,7 +131,6 @@ class ReportResponse(BaseModel):
             elif value is None:
                 data[field] = []
 
-
         priority_breakdown = data.get("priority_breakdown")
 
         if isinstance(priority_breakdown, str):
@@ -146,6 +146,14 @@ class ReportResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+# 3. Paginated Response Wrapper Schema
+class PaginatedReportResponse(BaseModel):
+    items: list[ReportResponse]
+    total: int
+    page: int
+    size: int
+    pages: int
 
 class StatusUpdateRequest(BaseModel):
     status: Literal["OPEN", "IN_PROGRESS", "RESOLVED"]
