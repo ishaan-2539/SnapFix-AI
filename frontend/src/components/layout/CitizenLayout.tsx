@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { Home, Map, FileText, Camera, ArrowLeft, ShieldCheck } from "lucide-react";
 import { LogoMark, Logo } from "@/components/ui/Logo";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
 
 const navItems = [
   { to: "/app", label: "Home", icon: Home, end: true },
@@ -13,6 +14,8 @@ export function CitizenLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const isFullBleed = location.pathname.startsWith("/app/map");
+  const { session } = useAuth();
+  const initials = session?.user?.email ? session.user.email.slice(0, 2).toUpperCase() : null;
 
   return (
     <div className="min-h-screen bg-ink-50 lg:flex">
@@ -57,12 +60,22 @@ export function CitizenLayout() {
             <ArrowLeft className="w-3.5 h-3.5" />
             Back to site
           </button>
-          <button
-            onClick={() => navigate("/login")}
-            className="text-xs text-ink-300 hover:text-ink-600 font-medium"
-          >
-            Municipal login
-          </button>
+          {initials ? (
+            <button
+              onClick={() => navigate("/app/profile")}
+              className="w-7 h-7 rounded-full bg-brand-50 text-brand-700 flex items-center justify-center text-[11px] font-bold hover:bg-brand-100 transition-colors"
+              aria-label="Profile"
+            >
+              {initials}
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate("/login")}
+              className="text-xs text-ink-300 hover:text-ink-600 font-medium"
+            >
+              Sign in
+            </button>
+          )}
         </div>
       </aside>
 
@@ -71,13 +84,23 @@ export function CitizenLayout() {
           <LogoMark className="text-brand-600" />
         </button>
         <span className="font-display font-bold text-ink-900">SnapFix AI</span>
-        <button
-          onClick={() => navigate("/login")}
-          aria-label="Municipal login"
-          className="w-8 h-8 flex items-center justify-center text-ink-300 hover:text-ink-600"
-        >
-          <ShieldCheck className="w-4 h-4" />
-        </button>
+        {initials ? (
+          <button
+            onClick={() => navigate("/app/profile")}
+            aria-label="Profile"
+            className="w-7 h-7 rounded-full bg-brand-50 text-brand-700 flex items-center justify-center text-[10px] font-bold"
+          >
+            {initials}
+          </button>
+        ) : (
+          <button
+            onClick={() => navigate("/login")}
+            aria-label="Sign in"
+            className="w-8 h-8 flex items-center justify-center text-ink-300 hover:text-ink-600"
+          >
+            <ShieldCheck className="w-4 h-4" />
+          </button>
+        )}
       </header>
 
       <main className={cn("flex-1 min-w-0 lg:pb-0", isFullBleed ? "" : "pb-20")}>

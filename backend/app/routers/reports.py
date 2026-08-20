@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 import logging
 from app.services.storage_service import upload_report_image
 
-from app.core.auth import require_municipal
+from app.core.auth import require_municipal, get_current_user, get_current_user_optional
 from app.core.database import get_db
 from app.models.report_model import Report
 from app.schemas.report_schema import ReportResponse,StatusUpdateRequest
@@ -77,8 +77,14 @@ async def create_report(
     file: UploadFile = File(...),
     latitude: float | None = Form(None),
     longitude: float | None = Form(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: dict | None = Depends(get_current_user_optional),
 ):
+    # None for guest/anonymous submissions — the frontend's axios interceptor
+    # only attaches a token when a Supabase session exists, so this is None
+    # for anyone not logged in. Never required.
+    reporter_id = user.get("sub") if user else None
+
     # ------------------------------------------------------------------
     # Step 0: Image Format & Size Validation
     # ------------------------------------------------------------------
@@ -427,6 +433,7 @@ async def create_report(
         image_hash=img_hash,
         latitude=latitude,
         longitude=longitude,
+        reporter_id=reporter_id,
 
         category=category,
 
@@ -470,6 +477,29 @@ def inspect_is_coroutine(fn: Any) -> bool:
 def get_all_reports(db: Session = Depends(get_db)):
     """Retrieve all submitted civic reports."""
     return db.query(Report).order_by(Report.id.desc()).all()
+
+
+@router.get("/mine", response_model=List[ReportResponse])
+def get_my_reports(
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """
+    Retrieve reports submitted by the currently authenticated citizen.
+    Requires login — there's no reporter_id to scope to for guests, who
+    keep using the localStorage-tracked list on the frontend instead.
+
+    NOTE: this route must stay registered before /{report_id} below —
+    otherwise FastAPI tries to parse "mine" as the int report_id and
+    returns a 422 instead of ever reaching this handler.
+    """
+    reporter_id = user.get("sub")
+    return (
+        db.query(Report)
+        .filter(Report.reporter_id == reporter_id)
+        .order_by(Report.id.desc())
+        .all()
+    )
 
 
 @router.get("/{report_id}", response_model=ReportResponse)
