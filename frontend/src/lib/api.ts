@@ -1,13 +1,13 @@
 import axios, { AxiosError } from "axios";
 import type {
   ReportResponse,
+  PaginatedReportResponse,
   AnalyticsStats,
   MapPin,
   HealthResponse,
 } from "@/types/api";
 import { supabase } from "@/lib/supabase";
 
-// Base URL — configurable via env, falls back to the documented local dev server.
 export const BASE_URL: string =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://127.0.0.1:8000";
 
@@ -15,7 +15,6 @@ export const client = axios.create({
   baseURL: BASE_URL,
 });
 
-// Attach the current Supabase session token to every outgoing request.
 client.interceptors.request.use(async (config) => {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
@@ -26,14 +25,12 @@ client.interceptors.request.use(async (config) => {
   return config;
 });
 
-/** Builds a full, absolute URL for a relative image path returned by the API. */
 export function toImageUrl(imageUrl: string): string {
   if (!imageUrl) return "";
   if (imageUrl.startsWith("http")) return imageUrl;
   return `${BASE_URL}${imageUrl}`;
 }
 
-/** Human-readable message extraction, respecting the two documented error shapes. */
 export function extractErrorMessage(err: unknown, fallback = "Something went wrong. Please try again."): string {
   if (axios.isAxiosError(err)) {
     const ax = err as AxiosError<unknown>;
@@ -57,13 +54,6 @@ export const api = {
     return data;
   },
 
-  /**
-   * NOT part of the confirmed API contract — there is no documented endpoint
-   * for updating a report's status. This calls a dedicated sub-resource,
-   * PATCH /api/v1/reports/{id}/status, matching the spec given to the
-   * backend team. Callers MUST handle failure gracefully (404/405) rather
-   * than assume success until that endpoint actually exists.
-   */
   updateReportStatus: async (id: number, status: ReportResponse["status"]): Promise<ReportResponse> => {
     const { data } = await client.patch<ReportResponse>(`/api/v1/reports/${id}/status`, { status });
     return data;
@@ -90,9 +80,11 @@ export const api = {
     return data;
   },
 
-  listReports: async (): Promise<ReportResponse[]> => {
-    const { data } = await client.get<ReportResponse[]>("/api/v1/reports/");
-    return data;
+  listReports: async (page = 1, size = 20): Promise<ReportResponse[]> => {
+    const { data } = await client.get<PaginatedReportResponse>("/api/v1/reports/", {
+      params: { page, size },
+    });
+    return data.items;
   },
 
   getReport: async (id: number): Promise<ReportResponse> => {
@@ -100,13 +92,6 @@ export const api = {
     return data;
   },
 
-  /**
-   * Requires an authenticated Supabase session — the axios interceptor
-   * above attaches the token automatically when one exists. Backend
-   * returns 401 for anonymous callers; useMyReports.ts only calls this
-   * when it knows a session is present and falls back to the
-   * localStorage-tracked ID list otherwise.
-   */
   getMyReports: async (): Promise<ReportResponse[]> => {
     const { data } = await client.get<ReportResponse[]>("/api/v1/reports/mine");
     return data;
