@@ -13,7 +13,7 @@ from app.services.storage_service import upload_report_image
 from app.core.auth import require_municipal, get_current_user, get_current_user_optional
 from app.core.database import get_db
 from app.models.report_model import Report
-from app.schemas.report_schema import ReportResponse,StatusUpdateRequest
+from app.schemas.report_schema import ReportResponse, StatusUpdateRequest, PaginatedReportResponse
 from app.services.spatial_context_service import fetch_spatial_context
 from app.services.priority_engine import calculate_priority_score
 # Import directly from ai_service
@@ -513,10 +513,44 @@ def inspect_is_coroutine(fn: Any) -> bool:
     return asyncio.iscoroutinefunction(fn)
 
 
-@router.get("/", response_model=List[ReportResponse])
-def get_all_reports(db: Session = Depends(get_db)):
-    """Retrieve all submitted civic reports."""
-    return db.query(Report).order_by(Report.id.desc()).all()
+@router.get("/", response_model=PaginatedReportResponse)
+def get_all_reports(
+    page: int = 1,
+    size: int = 20,
+    db: Session = Depends(get_db),
+):
+    """
+    Retrieve all submitted civic reports, paginated.
+
+    The frontend (`api.listReports()`) has always requested `page`/`size`
+    query params and unwrapped a `{ items, total, page, size, pages }`
+    envelope via `PaginatedReportResponse` — this route previously ignored
+    both params and returned a bare list, so `data.items` was always
+    `undefined` on the client and every caller silently got no reports
+    (or crashed, where the caller didn't guard against it).
+    """
+    page = max(page, 1)
+    size = max(min(size, 100), 1)  # guard against 0/negative/absurdly large page sizes
+
+    base_query = db.query(Report).order_by(Report.id.desc())
+
+    total = base_query.count()
+    pages = max((total + size - 1) // size, 1)
+
+    items = (
+        base_query
+        .offset((page - 1) * size)
+        .limit(size)
+        .all()
+    )
+
+    return PaginatedReportResponse(
+        items=items,
+        total=total,
+        page=page,
+        size=size,
+        pages=pages,
+    )
 
 
 @router.get("/mine", response_model=List[ReportResponse])

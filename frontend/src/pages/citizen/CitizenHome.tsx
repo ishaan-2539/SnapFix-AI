@@ -28,7 +28,14 @@ export default function CitizenHome() {
     api
       .listReports()
       .then((all) => setNearby(all.slice(0, 4)))
-      .catch(() => {})
+      .catch((e) => {
+        // Previously silent (`.catch(() => {})`), which is exactly how the
+        // pagination-shape bug above went unnoticed: the request/parsing
+        // failed, but the UI just quietly showed "No nearby issues"
+        // instead of surfacing anything. Surface it like the stats call
+        // above already does.
+        setError((prev) => prev ?? extractErrorMessage(e));
+      })
       .finally(() => setNearbyLoading(false));
   }, []);
 
