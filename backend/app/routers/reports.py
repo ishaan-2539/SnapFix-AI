@@ -57,6 +57,22 @@ HASH_DEDUP_TIERS: list[tuple[int, float]] = [
     (10, 50.0),   # borderline match (still <= HASH_DISTANCE_THRESHOLD) -> tighter radius
 ]
 
+# Tier 2: category + radius dedup.
+#
+# BUGFIX: Tier 2 previously merged on category + GPS proximity ALONE, with
+# zero check on the actual images. Two distinct issues of the same category
+# (e.g. two separate potholes on the same street, both classified "Pothole")
+# within DEDUPLICATION_RADIUS_METERS of each other were silently merged into
+# one report even though the photos weren't remotely similar.
+#
+# This threshold is intentionally much looser than HASH_DISTANCE_THRESHOLD
+# (Tier 1). Tier 2's actual job is catching different-angle/lighting photos
+# of the SAME real-world issue submitted by different reporters, so it can't
+# require a tight visual match — it just needs enough of a gate to reject
+# images that are obviously unrelated. Tune this down if false merges persist,
+# or up if legitimate multi-angle duplicates stop matching.
+TIER2_HASH_DISTANCE_THRESHOLD = 26  # out of 64 bits
+
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB Limit
 
@@ -460,6 +476,29 @@ async def create_report(
             )
 
             if dist <= DEDUPLICATION_RADIUS_METERS:
+                # BUGFIX: require the images to be at least loosely visually
+                # related before merging. Category + proximity alone isn't
+                # enough evidence — two unrelated issues of the same type
+                # commonly sit within 15m of each other (e.g. two separate
+                # potholes on the same stretch of road).
+                existing_hash = getattr(existing_report, "image_hash", None)
+                if existing_hash:
+                    try:
+                        tier2_h_dist = hash_distance(img_hash, existing_hash)
+                    except ValueError:
+                        # Malformed/legacy hash string — don't let a bad
+                        # stored hash block dedup, fall back to old behavior.
+                        tier2_h_dist = None
+
+                    if (
+                        tier2_h_dist is not None
+                        and tier2_h_dist > TIER2_HASH_DISTANCE_THRESHOLD
+                    ):
+                        continue
+                # if existing_hash is missing (legacy row with no stored
+                # hash), fall back to the old category+radius-only behavior
+                # rather than blocking dedup entirely.
+
                 current_upvotes = int(
                     getattr(existing_report, "upvotes", 1) or 1
                 ) + 1
