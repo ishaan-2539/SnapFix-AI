@@ -33,15 +33,29 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 DEDUPLICATION_RADIUS_METERS = 15.0  # 15 meters clustering threshold (Tier 2: category + radius)
 MIN_SPATIAL_DEDUP_CONFIDENCE = 0.80
 
-# Tier 1: perceptual-hash dedup. Slightly wider than the Tier 2 radius since
-# a strong visual match (same pothole, same angle) is trustworthy evidence
-# even if GPS drifted a bit more than DEDUPLICATION_RADIUS_METERS.
-HASH_DEDUP_RADIUS_METERS = 30.0
-# dhash is a 64-bit hash. 8-10 is a common starting threshold for "same
-# photo, re-compressed/re-cropped" — tune once we see real submission data.
-# Too low -> re-uploads of the same pothole slip through as new reports.
-# Too high -> unrelated potholes start merging into one ticket.
-HASH_DISTANCE_THRESHOLD = 10
+# Tier 1: perceptual-hash dedup.
+#
+# The allowed GPS radius now SCALES with how strong the hash match is,
+# instead of a single flat cutoff. Rationale: a near-exact visual match
+# (same photo, same pothole, same angle) is very strong evidence on its
+# own and should tolerate more GPS drift than a borderline match does.
+# Consumer/phone GPS in dense urban areas (tall buildings blocking sky
+# view) commonly drifts 30-50m+, so a flat 30m radius was rejecting
+# legitimate exact-hash duplicates (see report #21 vs #22 — hash distance
+# 0, GPS 30.84m apart, flat 30m cutoff silently skipped the match).
+#
+# dhash is a 64-bit hash. Lower Hamming distance = more visually similar;
+# 0 = pixel-identical hash.
+HASH_DISTANCE_THRESHOLD = 10  # anything above this is never considered a match, regardless of distance
+
+# Tiers are checked in order from tightest hash-match requirement to
+# loosest. Each tuple is (max_hash_distance, allowed_radius_meters).
+# Must stay sorted by max_hash_distance ascending.
+HASH_DEDUP_TIERS: list[tuple[int, float]] = [
+    (3, 100.0),   # near-exact / identical image -> tolerate significant GPS drift
+    (6, 65.0),    # strong match -> moderate drift allowed
+    (10, 50.0),   # borderline match (still <= HASH_DISTANCE_THRESHOLD) -> tighter radius
+]
 
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB Limit
@@ -126,25 +140,51 @@ async def create_report(
         if not candidate_hash:
             continue
 
-        existing_lat = float(getattr(candidate, "latitude", 0.0))
-        existing_lon = float(getattr(candidate, "longitude", 0.0))
-
-        dist_m = calculate_haversine_distance(
-            latitude, longitude, existing_lat, existing_lon
-        )
-        if dist_m > HASH_DEDUP_RADIUS_METERS:
-            continue
-
+        # Check the hash FIRST — it's cheap, has nothing to do with GPS,
+        # and tells us which radius tier even applies. Gating on distance
+        # before this (the old behavior) meant a perfect hash match could
+        # be discarded before it was ever compared, just for landing a
+        # few meters past a flat cutoff.
         try:
             h_dist = hash_distance(img_hash, candidate_hash)
         except ValueError:
             # Malformed/legacy hash string — skip rather than fail the request.
             continue
 
-        if h_dist <= HASH_DISTANCE_THRESHOLD:
-            if best_distance is None or h_dist < best_distance:
-                best_match = candidate
-                best_distance = h_dist
+        if h_dist > HASH_DISTANCE_THRESHOLD:
+            continue
+
+        # Find the tightest tier this hash distance qualifies for, and use
+        # its allowed radius. HASH_DEDUP_TIERS is sorted ascending by
+        # max_hash_distance, so the first match is the correct (narrowest
+        # applicable) tier.
+        allowed_radius = next(
+            (radius for max_h_dist, radius in HASH_DEDUP_TIERS if h_dist <= max_h_dist),
+            None,
+        )
+        if allowed_radius is None:
+            # Shouldn't happen given HASH_DISTANCE_THRESHOLD == the tiers'
+            # max, but fail safe rather than dedup with an undefined radius.
+            continue
+
+        existing_lat = float(getattr(candidate, "latitude", 0.0))
+        existing_lon = float(getattr(candidate, "longitude", 0.0))
+
+        dist_m = calculate_haversine_distance(
+            latitude, longitude, existing_lat, existing_lon
+        )
+        if dist_m > allowed_radius:
+            continue
+
+        # Prefer the closer VISUAL match first (lower h_dist), then the
+        # closer physical match as a tiebreaker.
+        if (
+            best_distance is None
+            or h_dist < best_distance[0]
+            or (h_dist == best_distance[0] and dist_m < best_distance[1])
+        ):
+            best_match = candidate
+            best_distance = (h_dist, dist_m)
 
     if best_match is not None:
         existing_hash_report = best_match
