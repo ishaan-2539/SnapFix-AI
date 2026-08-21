@@ -80,7 +80,7 @@ def generate_report_pdf(report: Report) -> bytes:
             Paragraph("<b>Status:</b>", body_style), Paragraph(status, body_style)
         ],
         [
-            Paragraph("<b>Severity Score:</b>", body_style), Paragraph(f"{severity_score}/10", body_style),
+            Paragraph("<b>Severity Score:</b>", body_style), Paragraph(f"{severity_score}/6", body_style),
             Paragraph("<b>Priority Score:</b>", body_style), Paragraph(str(priority_score), body_style)
         ],
         [

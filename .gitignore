@@ -219,3 +219,4 @@ __marimo__/
 *.db
 *.sqlite3
 2.2.md
+*.xml

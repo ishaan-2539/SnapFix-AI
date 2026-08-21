@@ -86,6 +86,61 @@ def _get_field(obj: Any, key: str, default: Any) -> Any:
     return getattr(obj, key, default)
 
 
+def _spatial_context_from_stored_breakdown(existing_report: Any) -> dict[str, Any]:
+    """
+    Rebuild a spatial_context-shaped dict from a report's already-computed
+    priority_breakdown, instead of re-querying the live Overpass API.
+
+    Why this exists: the dedup path (Tier 1 hash match, Tier 2 category+radius
+    match) used to call fetch_spatial_context(existing_lat, existing_lon) again
+    every time a duplicate came in, purely to re-run calculate_priority_score()
+    with an updated corroboration count. But the existing report's location
+    never changes, so its nearby schools/hospitals/roads are IDENTICAL to what
+    was already fetched and stored in priority_breakdown when it was first
+    created — that live network call was 100% redundant work on every dupe hit.
+
+    Worse, it was a *synchronous* httpx call (not wrapped in asyncio.to_thread
+    like the create-path calls are), so it blocked the whole event loop —
+    worst case ~(3s connect + 6s read) x 2 retries x 2 endpoints ≈ 36 seconds
+    where the ENTIRE API is frozen for every user, not just this request.
+    This is almost certainly what's been making dedup feel slow/inconsistent.
+
+    Reconstructing from the stored breakdown makes duplicate submissions
+    resolve near-instantly with zero external calls.
+    """
+    try:
+        breakdown = json.loads(
+            getattr(existing_report, "priority_breakdown", None) or "{}"
+        )
+    except (TypeError, ValueError):
+        breakdown = {}
+
+    school = breakdown.get("school_proximity") or {}
+    hospital = breakdown.get("hospital_proximity") or {}
+    road = breakdown.get("major_road_proximity") or {}
+
+    return {
+        "nearest_school": (
+            {"distance_meters": school.get("distance_meters")}
+            if school.get("distance_meters") is not None
+            else None
+        ),
+        "nearest_hospital": (
+            {"distance_meters": hospital.get("distance_meters")}
+            if hospital.get("distance_meters") is not None
+            else None
+        ),
+        "nearest_major_road": (
+            {
+                "distance_meters": road.get("distance_meters"),
+                "road_importance": road.get("road_importance", 0),
+            }
+            if road.get("distance_meters") is not None
+            else None
+        ),
+    }
+
+
 @router.post("/", response_model=ReportResponse, status_code=status.HTTP_201_CREATED)
 async def create_report(
     file: UploadFile = File(...),
@@ -205,9 +260,10 @@ async def create_report(
             getattr(existing_hash_report, "longitude", 0.0)
         )
 
-        existing_spatial_context = fetch_spatial_context(
-            existing_lat,
-            existing_lon,
+        # No live Overpass call here — reuse the spatial data that was
+        # already fetched and stored when this report was first created.
+        existing_spatial_context = _spatial_context_from_stored_breakdown(
+            existing_hash_report
         )
 
         priority_result = calculate_priority_score(
@@ -412,9 +468,10 @@ async def create_report(
                     getattr(existing_report, "severity_score", 5) or 5
                 )
 
-                existing_spatial_context = fetch_spatial_context(
-                    existing_lat,
-                    existing_lon,
+                # Same fix as Tier 1 above: reuse the already-stored spatial
+                # data instead of re-hitting Overpass synchronously.
+                existing_spatial_context = _spatial_context_from_stored_breakdown(
+                    existing_report
                 )
 
                 priority_result = calculate_priority_score(
@@ -545,7 +602,7 @@ def get_all_reports(
     )
 
     return PaginatedReportResponse(
-        items=items,
+        items=items, # type: ignore[arg-type]
         total=total,
         page=page,
         size=size,
