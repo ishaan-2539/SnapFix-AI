@@ -22,6 +22,16 @@ const CATEGORIES = [
   "Other",
 ];
 
+// BUGFIX: the AI backend (ai_service.py's Gemini prompt) labels this
+// category "Trash / Garbage" (spaces around the slash), but this file's
+// CATEGORIES list and filter chips use "Trash/Garbage" (no spaces). Every
+// report saved by the API ends up with the spaced version, so an exact
+// string match against the chip's label silently matched zero pins whenever
+// that filter was active. Normalizing both sides before comparing fixes
+// existing data too, without needing a backend redeploy or DB migration.
+const normalizeCategory = (cat: string) =>
+  cat.trim().toLowerCase().replace(/\s*\/\s*/g, "/");
+
 const DEFAULT_CENTER: [number, number] = [28.6469, 77.391];
 
 function FlyTo({ lat, lng }: { lat: number; lng: number }) {
@@ -66,13 +76,28 @@ export default function CityMap({ standalone = false, reportPath = "/app/report"
         query.trim() === "" ||
         p.category.toLowerCase().includes(query.toLowerCase()) ||
         p.summary.toLowerCase().includes(query.toLowerCase());
-      const matchesCategory = activeCategories.size === 0 || activeCategories.has(p.category);
+      const matchesCategory =
+        activeCategories.size === 0 ||
+        activeCategories.has(p.category) || // fast path for already-consistent data
+        Array.from(activeCategories).some(
+          (cat) => normalizeCategory(cat) === normalizeCategory(p.category)
+        );
       const matchesStatus =
         statusFilter === "all" ||
         (statusFilter === "resolved" ? p.status === "RESOLVED" : p.status !== "RESOLVED");
       return matchesQuery && matchesCategory && matchesStatus;
     });
   }, [pins, query, activeCategories, statusFilter]);
+
+  // BUGFIX: the detail card for `selected` rendered independent of the
+  // `filtered` list, so toggling a filter that excluded the currently-open
+  // pin left its card floating on screen while the map showed "No Search
+  // Results" underneath — confusing since the two contradicted each other.
+  useEffect(() => {
+    if (selected && !filtered.some((p) => p.id === selected.id)) {
+      setSelected(null);
+    }
+  }, [filtered, selected]);
 
   const toggleCategory = (cat: string) => {
     setActiveCategories((prev) => {

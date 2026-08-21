@@ -119,7 +119,7 @@ Return ONLY valid JSON matching this structure:
 
 Allowed categories:
 - Pothole
-- Trash / Garbage
+- Trash/Garbage
 - Water Leak
 - Damaged Streetlight
 - Road Damage
