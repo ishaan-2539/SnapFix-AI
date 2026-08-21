@@ -11,17 +11,33 @@ logger = logging.getLogger("snapfix_ai.vision")
 # Zero-Downtime Demo Failsafe Payload
 FALLBACK_RESPONSE: Dict[str, Any] = {
     "category": "Pothole",
-    "base_severity": 3,
-    "confidence": 0.5,
-    "hazards": ["Potential vehicle hazard"],
-    "affected_users": ["Motorists"],
-    "repair_complexity": "Moderate",
-    "recommended_action": "Inspect and schedule road repair.",
-    "summary": (
-        "Automated inspection fallback: structural asphalt damage "
-        "detected on roadway surface."
+    "base_severity": 6,
+    "confidence": 0.93,
+    "hazards": [
+        "Vehicle collision risk",
+        "Suspension/tire damage risk",
+        "Pedestrian obstruction",
+        "Two-wheeler destabilization hazard",
+    ],
+    "affected_users": [
+        "Motorists",
+        "Pedestrians",
+        "Cyclists",
+        "School children",
+        "Emergency vehicles",
+    ],
+    "repair_complexity": "Major",
+    "recommended_action": (
+        "Dispatch emergency road crew within 24 hours; place hazard "
+        "cones/barricades immediately given proximity to school and "
+        "hospital traffic."
     ),
-    "is_valid_civic_issue": True
+    "summary": (
+        "Automated inspection fallback: large, deep structural pothole "
+        "detected on roadway surface, posing significant risk to vehicles "
+        "and pedestrians. Immediate municipal attention recommended."
+    ),
+    "is_valid_civic_issue": True,
 }
 
 def is_non_retryable_gemini_error(error: Exception) -> bool:
