@@ -621,7 +621,7 @@ This project is licensed under the **MIT License**.
 
 # 👨‍💻 Author
 
-Developed by **Ishaan Nautiyal, Vaibhav Bisht, Aashi Jindal, Devanshi Bisht**
+Developed by **Ishaan Nautiyal, Asmi Garg, Aashi Jindal, Devanshi Bisht**
 
 Built with a passion for AI, cybersecurity, and modern software engineering.
 
